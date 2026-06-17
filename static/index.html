@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<title>BirdLens — AI Bird Identifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Mono:wght@300;400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+
+/* ══ Tokens ══════════════════════════════════════════════════════════ */
+:root {
+  --ink:        #111512;
+  --forest:     #1c241f;
+  --canopy:     #263128;
+  --moss:       #47684d;
+  --sage:       #7a9869;
+  --mist:       #adc2a2;
+  --dew:        #d6e1c8;
+  --cream:      #f6f1e7;
+  --gold:       #c99945;
+  --amber:      #e1bd6e;
+  --feather:    #91b07b;
+  --rust:       #bb7048;
+  --text-main:  #ece8dc;
+  --text-soft:  #b7c3ad;
+  --text-muted: #82917c;
+  --border:     rgba(214,225,200,0.14);
+  --border-mid: rgba(214,225,200,0.24);
+  --glow:       rgba(145,176,123,0.10);
+  --card:       rgba(28,36,31,0.82);
+
+  /* Status */
+  --s-lc: #5a9e6a; --s-nt: #c8a030;
+  --s-vu: #c87830; --s-en: #b83820; --s-cr: #880000;
+}
+
+/* ══ Reset ═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; height: 100%; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--ink);
+  color: var(--text-main);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(235,227,210,0.03) 0 25%, transparent 25%),
+    radial-gradient(ellipse 72% 48% at 12% -8%, rgba(122,152,105,0.22) 0%, transparent 62%),
+    radial-gradient(ellipse 50% 70% at 92% 18%, rgba(187,112,72,0.10) 0%, transparent 58%),
+    linear-gradient(180deg, #111512 0%, #161c18 52%, #111512 100%);
+}
+
+/* ══ Header ══════════════════════════════════════════════════════════ */
+header {
+  position: sticky; top: 0; z-index: 1000;
+  display: flex; align-items: center; gap: 18px;
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(17,21,18,0.92);
+  backdrop-filter: blur(10px);
+}
+
+.logo-icon { flex-shrink: 0; width: 40px; height: 40px; }
+.logo-icon svg { width: 100%; height: 100%; }
+
+.logo-text h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.7rem; font-weight: 700;
+  color: var(--cream); line-height: 1; letter-spacing: 0;
+}
+.logo-text h1 em { color: var(--feather); font-style: italic; }
+.logo-text p {
+  font-size: 0.7rem; color: var(--text-muted);
+  margin-top: 4px; letter-spacing: 0.09em; text-transform: uppercase;
+}
+
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.region-select {
+  background: var(--canopy); border: 1px solid var(--border);
+  color: var(--text-main); font-family: 'DM Mono', monospace;
+  font-size: 0.72rem; padding: 7px 11px; border-radius: 6px;
+  cursor: pointer; outline: none; transition: border-color 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2382917c'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+  padding-right: 28px;
+}
+.region-select:hover, .region-select:focus { border-color: var(--sage); }
+
+/* ══ Main split layout ═══════════════════════════════════════════════ */
+.workspace {
+  padding: 10px;
+  position: relative; z-index: 1;
+  display: grid;
+  align-items: start;
+  grid-template-columns: 38% 62%;
+  min-height: auto; /* subtract header height */
+}
+
+/* ── Left panel: image ───────────────────────────────────────────── */
+.panel-image {
+  position: sticky; top: 85px;
+  align-self: start;
+  height: fit-content; min-height: 550px;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(20,25,20,0.7);
+  overflow: hidden;
+}
+
+/* Drop zone */
+.upload-zone {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  cursor: pointer; position: relative;
+  transition: background 0.2s;
+  padding: 0;
+}
+.upload-zone:hover .drop-hint, .upload-zone.dragover .drop-hint { opacity: 1; }
+.upload-zone.dragover { background: rgba(145,176,123,0.07); }
+.upload-zone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0;
+  cursor: pointer; width: 100%; height: 100%; z-index: 2;
+}
+.upload-zone.has-image input[type="file"] { pointer-events: none; }
+
+/* Empty state */
+.empty-drop {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; padding: 40px 32px; text-align: center;
+  pointer-events: none; user-select: none;
+}
+.empty-drop .feather-svg { width: 64px; height: 64px; opacity: 0.38; margin-bottom: 4px; }
+.empty-drop h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.2rem; font-weight: 400;
+  color: var(--dew); line-height: 1.3;
+}
+.empty-drop p { font-size: 0.8rem; color: var(--text-muted); }
+.empty-drop .formats {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem; color: var(--text-muted);
+  letter-spacing: 0.06em; margin-top: 4px;
+}
+.drop-hint {
+  position: absolute; inset: 12px;
+  border: 1.5px dashed var(--moss);
+  border-radius: 8px; opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+/* Preview */
+#preview-container {
+  width: 100%;
+  height: 420px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: #0f1410;
+  overflow: hidden;
+}
+#preview-img {
+  width: auto; height: auto; max-width: 98%; max-height: 98%;
+  object-fit: contain;   /* ← whole bird, never cropped */
+  display: block;
+}
+/* Subtle checkerboard for transparent images */
+#preview-img { background:
+  linear-gradient(45deg, rgba(255,255,255,0.03) 25%, transparent 25% 75%, rgba(255,255,255,0.03) 75%),
+  linear-gradient(45deg, rgba(255,255,255,0.03) 25%, transparent 25% 75%, rgba(255,255,255,0.03) 75%),
+  #090c0a;
+  background-size: 18px 18px; background-position: 0 0, 9px 9px;
+}
+.preview-message {
+  display: none; position: absolute; inset: 0;
+  align-items: center; justify-content: center; padding: 28px;
+  text-align: center; color: var(--text-soft);
+  font-size: 0.84rem; line-height: 1.65; background: #090c0a;
+}
+#preview-container.preview-error #preview-img { visibility: hidden; }
+#preview-container.preview-error .preview-message { display: flex; }
+
+/* Scanner overlay */
+.scanner-overlay {
+  display: none; position: absolute; inset: 0;
+  background: rgba(8,13,10,0.72);
+  z-index: 10; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+}
+.scanner-overlay.active { display: flex; }
+.scan-corners {
+  position: absolute; inset: 20px;
+  border: 1px solid rgba(145,176,123,0.28); border-radius: 4px;
+}
+.scan-corners::before, .scan-corners::after {
+  content: ''; position: absolute;
+  width: 18px; height: 18px;
+  border-color: var(--feather); border-style: solid;
+}
+.scan-corners::before { top:-1px; left:-1px; border-width: 2px 0 0 2px; }
+.scan-corners::after  { bottom:-1px; right:-1px; border-width: 0 2px 2px 0; }
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 1.5px;
+  background: linear-gradient(to right, transparent, var(--feather), var(--amber), var(--feather), transparent);
+  box-shadow: 0 0 10px rgba(145,176,123,0.5);
+  animation: scanMove 1.8s ease-in-out infinite; top: 0;
+}
+@keyframes scanMove { 0%{top:4%;opacity:0} 8%{opacity:1} 92%{opacity:1} 100%{top:96%;opacity:0} }
+.scan-label {
+  font-family: 'DM Mono', monospace; font-size: 0.72rem;
+  color: var(--feather); letter-spacing: 0.14em; text-transform: uppercase;
+  animation: breathe 1.6s ease-in-out infinite;
+}
+@keyframes breathe { 0%,100%{opacity:0.5} 50%{opacity:1} }
+.scan-dots { display: flex; gap: 5px; }
+.scan-dots span {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--sage); opacity: 0.3;
+  animation: dotpop 1.4s ease-in-out infinite;
+}
+.scan-dots span:nth-child(2) { animation-delay: 0.18s; }
+.scan-dots span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes dotpop { 0%,80%,100%{opacity:0.3} 40%{opacity:1} }
+
+/* Image action bar */
+.image-actions {
+  flex-shrink: 0;
+  display: none;
+  align-items: center; gap: 8px;
+  padding: 12px 16px;
+  background: rgba(14,18,15,0.95);
+  border-top: 1px solid var(--border);
+}
+.image-actions.visible { display: flex; }
+
+.file-meta {
+  flex: 1; min-width: 0;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem;
+  color: var(--text-muted); line-height: 1.5;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.file-meta b { color: var(--text-soft); font-weight: 400; }
+
+.btn-change {
+  flex-shrink: 0;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-soft); font-size: 0.73rem;
+  padding: 6px 12px; border-radius: 6px;
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  transition: all 0.2s; white-space: nowrap;
+}
+.btn-change:hover { border-color: var(--sage); color: var(--dew); }
+
+.btn-identify {
+  flex-shrink: 0;
+  background: var(--rust); border: none;
+  color: var(--cream); font-size: 0.82rem; font-weight: 500;
+  padding: 8px 18px; border-radius: 6px;
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  transition: background 0.2s; white-space: nowrap;
+}
+.btn-identify:hover   { background: #c27c55; }
+.btn-identify:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Right panel: info ──────────────────────────────────────────── */
+.panel-info {
+  overflow-y: auto;
+  padding: 32px 28px 60px;
+  display: flex; flex-direction: column;
+}
+
+/* Idle/welcome state */
+.idle-state {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 40px 20px; gap: 10px;
+  color: var(--text-muted);
+}
+.idle-state .idle-icon { opacity: 0.2; margin-bottom: 8px; }
+.idle-state h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem; font-weight: 400;
+  color: var(--text-soft);
+}
+.idle-state p { font-size: 0.8rem; line-height: 1.6; max-width: 260px; }
+
+/* Results panel */
+#results { display: none; animation: slideIn 0.45s cubic-bezier(0.22,1,0.36,1); }
+#results.visible { display: block; }
+@keyframes slideIn { from{opacity:0;transform:translateX(14px)} to{opacity:1;transform:translateX(0)} }
+
+/* ── Top identification block ── */
+.id-block {
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 22px;
+}
+.id-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px; }
+
+.confidence-ring {
+  flex-shrink: 0; width: 68px; height: 68px; position: relative;
+}
+.confidence-ring svg { transform: rotate(-90deg); }
+.ring-bg   { fill: none; stroke: var(--canopy); stroke-width: 6; }
+.ring-fill {
+  fill: none; stroke: var(--feather); stroke-width: 6;
+  stroke-linecap: round; stroke-dasharray: 188.4; stroke-dashoffset: 188.4;
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1), stroke 0.4s;
+}
+.ring-label {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.ring-pct  { font-family: 'DM Mono', monospace; font-size: 0.85rem; color: var(--amber); line-height: 1; transition: color 0.4s; }
+.ring-word { font-family: 'DM Mono', monospace; font-size: 0.42rem; color: var(--text-muted); margin-top: 2px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+.bird-name {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1.4rem, 2.5vw, 1.9rem);
+  font-weight: 700; color: var(--cream);
+  line-height: 1.1; margin-bottom: 4px;
+}
+.scientific-name {
+  font-family: 'Playfair Display', serif;
+  font-style: italic; font-size: 0.92rem;
+  color: var(--feather); margin-bottom: 0;
+}
+
+/* Taxonomy chips */
+.tax-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 14px; }
+.chip {
+  background: rgba(46,92,62,0.38); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 9px;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem;
+  color: var(--mist); letter-spacing: 0.03em;
+}
+.chip strong { color: var(--text-soft); font-weight: 400; }
+
+/* Quick stats */
+.qstats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.qstat {
+  flex: 1; min-width: 100px;
+  background: rgba(22,28,22,0.7); border: 1px solid var(--border);
+  border-radius: 7px; padding: 9px 12px;
+}
+.qstat .ql { font-family: 'DM Mono', monospace; font-size: 0.58rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+.qstat .qv { font-size: 0.84rem; color: var(--text-main); }
+.s-lc{color:var(--s-lc)!important} .s-nt{color:var(--s-nt)!important}
+.s-vu{color:var(--s-vu)!important} .s-en{color:var(--s-en)!important} .s-cr{color:var(--s-cr)!important}
+
+/* External links */
+.ext-links { display: flex; flex-wrap: wrap; gap: 7px; }
+.ext-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 10px 18px;
+
+    font-size: 0.9rem;
+    font-weight: 500;
+
+    border-radius: 8px;
+
+    color: var(--cream);
+    text-decoration: none;
+
+    border: 1px solid rgba(145,176,123,0.35);
+    background: rgba(145,176,123,0.08);
+
+    transition: all 0.2s ease;
+}    
+.ext-link:hover {
+    transform: translateY(-2px);
+    border-color: var(--feather);
+    background: rgba(145,176,123,0.15);
+}
+/* ── Info cards ── */
+.info-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px; padding: 18px 20px;
+  margin-bottom: 14px;
+  backdrop-filter: blur(6px);
+}
+.info-card:last-child { margin-bottom: 0; }
+.card-label {
+  font-family: 'DM Mono', monospace; font-size: 0.62rem;
+  color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.13em; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Wiki extract */
+.wiki-extract {
+  font-size: 0.85rem; color: var(--text-soft);
+  line-height: 1.75; border-left: 2px solid var(--moss);
+  padding-left: 14px; margin-bottom: 10px;
+}
+.wiki-link { color: var(--feather); font-size: 0.74rem; text-decoration: none; }
+.wiki-link:hover { text-decoration: underline; }
+
+/* Fact rows */
+.fact-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+}
+.fact-row:last-child { border-bottom: none; }
+.fact-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sage); flex-shrink: 0; margin-top: 6px; }
+.fact-text { font-size: 0.83rem; color: var(--text-soft); line-height: 1.65; }
+.fact-text strong { color: var(--text-main); font-weight: 500; }
+
+/* Data rows */
+.data-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.data-row:last-child { border-bottom: none; }
+.d-lbl { font-size: 0.78rem; color: var(--text-muted); }
+.d-val { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--text-main); text-align: right; }
+
+/* Candidates */
+.cand-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.cand-row:last-child { border-bottom: none; }
+.cand-rank { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--text-muted); width: 18px; text-align: right; flex-shrink: 0; }
+.cand-names { flex: 1; min-width: 0; }
+.cand-cn { font-size: 0.84rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cand-sn { font-family: 'Playfair Display', serif; font-style: italic; font-size: 0.7rem; color: var(--text-muted); }
+.cand-bar { width: 90px; flex-shrink: 0; }
+.bar-bg   { background: var(--canopy); border-radius: 3px; height: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; background: var(--sage); width: 0; transition: width 1s cubic-bezier(0.4,0,0.2,1); }
+.bar-pct  { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--text-muted); text-align: right; margin-top: 3px; }
+
+/* Sightings */
+.sighting-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.sighting-item:last-child { border-bottom: none; }
+.sighting-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); flex-shrink: 0; margin-top: 5px; }
+.sighting-loc { font-size: 0.83rem; color: var(--text-main); }
+.sighting-meta { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+.sighting-count {
+  margin-left: auto; flex-shrink: 0;
+  background: rgba(20,26,20,0.8); border: 1px solid var(--border);
+  font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--amber);
+  padding: 2px 7px; border-radius: 4px;
+}
+
+/* ══ Nearby section ══════════════════════════════════════════════════ */
+.nearby-section {
+  position: relative; z-index: 1;
+  border-top: 1px solid var(--border);
+  padding: 28px 28px 48px;
+}
+.section-header {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.05rem; color: var(--dew);
+  margin-bottom: 16px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-header::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.nearby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(188px,1fr)); gap: 10px; }
+.nearby-card {
+  background: rgba(28,36,31,0.65); border: 1px solid var(--border);
+  border-radius: 8px; padding: 13px 15px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.nearby-card:hover { border-color: var(--sage); transform: translateY(-2px); }
+.ncn { font-size: 0.87rem; color: var(--text-main); font-weight: 500; }
+.nsn { font-family: 'Playfair Display', serif; font-style: italic; font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+.nloc { font-size: 0.7rem; color: var(--mist); margin-top: 6px; }
+.ndate { font-family: 'DM Mono', monospace; font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ══ Footer ══════════════════════════════════════════════════════════ */
+footer {
+  position: relative; z-index: 1;
+  border-top: 1px solid var(--border);
+  padding: 18px 28px;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--text-muted);
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;
+  background: rgba(14,18,14,0.6);
+}
+footer a { color: var(--text-muted); text-decoration: none; }
+footer a:hover { color: var(--feather); }
+
+/* ══ Toast ═══════════════════════════════════════════════════════════ */
+#toast {
+  position: fixed; bottom: 22px; left: 50%;
+  transform: translateX(-50%) translateY(90px);
+  background: #3a1a1a; border: 1px solid #8b3a3a;
+  color: #ffb3b3; font-size: 0.78rem;
+  padding: 10px 18px; border-radius: 7px;
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  z-index: 200; font-family: 'DM Mono', monospace;
+  max-width: 88vw; text-align: center;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ══ Empty state ════════════════════════════════════════════════════ */
+.empty-state { text-align: center; padding: 20px 0; color: var(--text-muted); font-size: 0.82rem; }
+
+/* ══ Responsive ══════════════════════════════════════════════════════ */
+@media (max-width: 780px) {
+  .workspace { grid-template-columns: 1fr; min-height: auto; }
+
+  .panel-image {
+    position: relative; top: auto;
+    height: auto; min-height: 300px;
+    border-right: none; border-bottom: 1px solid var(--border);
+  }
+  #preview-container { min-height: 280px; position: relative; }
+  #preview-img { position: relative; width: 100%; height: auto; max-height: 60vh; min-height: 200px; }
+
+  .panel-info { padding: 24px 18px 48px; }
+  .nearby-section { padding: 24px 18px 40px; }
+  footer { padding: 16px 18px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ Header ════════════════════════════════════════════════════════ -->
+<header>
+  <div class="logo-icon">
+    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="26" cy="26" r="25" stroke="#2e5c3e" stroke-width="1.5"/>
+      <path d="M12 30 Q18 18 26 22 Q30 14 40 16 Q36 24 30 24 Q34 28 30 34 Q24 38 16 36 Z" fill="#4a8c60" opacity="0.9"/>
+      <path d="M30 24 Q35 20 40 16 Q38 22 34 24" fill="#7ab89a" opacity="0.7"/>
+      <circle cx="34" cy="20" r="2" fill="#d4a843"/>
+    </svg>
+  </div>
+  <div class="logo-text">
+    <h1>Bird<em>Lens</em></h1>
+    <p>AI-powered identification · BioCLIP + eBird</p>
+  </div>
+  <div class="header-right">
+    <select class="region-select" id="region-select" title="Sightings region">
+      <option value="IN-MH">Maharashtra, India</option>
+      <option value="IN">All India</option>
+      <option value="IN-DL">Delhi, India</option>
+      <option value="IN-KA">Karnataka, India</option>
+      <option value="IN-TN">Tamil Nadu, India</option>
+      <option value="IN-GJ">Gujarat, India</option>
+      <option value="US">United States</option>
+      <option value="US-NY">New York, USA</option>
+      <option value="GB">United Kingdom</option>
+      <option value="AU">Australia</option>
+    </select>
+  </div>
+</header>
+
+<!-- ══ Split workspace ═══════════════════════════════════════════════ -->
+<div class="workspace">
+
+  <!-- ── Left: image panel ──────────────────────────────────────── -->
+  <div class="panel-image">
+
+    <!-- Drop/upload zone -->
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
+      <div class="drop-hint" aria-hidden="true"></div>
+
+      <!-- Empty state -->
+      <div class="empty-drop" id="upload-placeholder">
+        <div class="feather-svg">
+          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 54 Q22 26 46 12 Q50 26 40 34 Q32 40 22 44 Q29 36 32 28" stroke="#4a8c60" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M10 54 L24 40" stroke="#7ab89a" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="3 5"/>
+            <circle cx="46" cy="12" r="3.5" fill="#c99945" opacity="0.7"/>
+            <path d="M52 28 Q54 26 56 28" stroke="#7ab89a" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.4"/>
+            <path d="M56 20 Q58 18 60 20" stroke="#7ab89a" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.25"/>
+          </svg>
+        </div>
+        <h2>Drop a bird photo</h2>
+        <p>or click to browse your files</p>
+        <p class="formats">JPG · PNG · WEBP · HEIC</p>
+      </div>
+
+      <!-- Preview -->
+      <div id="preview-container">
+        <img id="preview-img" alt="Bird photo preview">
+        <div class="preview-message" id="preview-message">
+          This format can't be previewed in your browser. You can still try identifying it, or use a JPG, PNG, or WEBP photo.
+        </div>
+        <!-- Scanner -->
+        <div class="scanner-overlay" id="scanner-overlay">
+          <div class="scan-corners"></div>
+          <div class="scan-line"></div>
+          <div class="scan-label">Analysing species</div>
+          <div class="scan-dots"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action bar (shown after image is loaded) -->
+    <div class="image-actions" id="image-actions">
+      <div class="file-meta" id="file-meta">—</div>
+      <button class="btn-change"   id="btn-change"   type="button">↩ Change</button>
+      <button class="btn-identify" id="btn-identify" type="button">🔍 Identify</button>
+    </div>
+  </div>
+
+  <!-- ── Right: info panel ──────────────────────────────────────── -->
+  <div class="panel-info">
+
+    <!-- Idle / welcome state -->
+    <div class="idle-state" id="idle-state">
+      <div class="idle-icon">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <path d="M8 36 Q16 18 28 18 Q32 8 42 10 Q38 20 30 22 Q34 28 28 34 Q20 40 10 36 Z" fill="#47684d" opacity="0.5"/>
+          <circle cx="36" cy="13" r="2.5" fill="#c99945" opacity="0.5"/>
+        </svg>
+      </div>
+      <h3>Identify a bird</h3>
+      <p>Upload a photo on the left and click <em>Identify</em> — BirdLens will recognise the species and show you everything about it here.</p>
+    </div>
+
+    <!-- Results (hidden until identification) -->
+    <div id="results">
+
+      <!-- Identification block -->
+      <div class="id-block">
+        <div class="id-head">
+          <div class="confidence-ring">
+            <svg viewBox="0 0 72 72" width="68" height="68">
+              <circle class="ring-bg"   cx="36" cy="36" r="30"/>
+              <circle class="ring-fill" cx="36" cy="36" r="30" id="ring-fill"/>
+            </svg>
+            <div class="ring-label">
+              <div class="ring-pct"  id="ring-pct">—</div>
+              <div class="ring-word">match</div>
+            </div>
+          </div>
+          <div class="id-names">
+            <div class="bird-name"      id="r-common-name">—</div>
+            <div class="scientific-name" id="r-scientific-name">—</div>
+          </div>
+        </div>
+
+        <div class="tax-chips" id="r-taxonomy"></div>
+        <div class="qstats"    id="r-qstats"></div>
+        <div class="ext-links" id="r-links"></div>
+      </div>
+
+      <!-- About -->
+      <div class="info-card" id="card-wiki" style="display:none">
+        <div class="card-label">About this bird</div>
+        <p class="wiki-extract" id="r-wiki-extract"></p>
+        <a class="wiki-link" id="r-wiki-link" href="#" target="_blank" rel="noopener noreferrer">Read more on Wikipedia ↗</a>
+      </div>
+
+      <!-- Quick facts -->
+      <div class="info-card" id="card-facts" style="display:none">
+        <div class="card-label">Quick facts</div>
+        <div id="r-facts"></div>
+      </div>
+
+      <!-- Naturalist data -->
+      <div class="info-card" id="card-inat" style="display:none">
+        <div class="card-label">Naturalist data</div>
+        <div id="r-inat-stats"></div>
+      </div>
+
+      <!-- Other candidates -->
+      <div class="info-card" id="card-candidates" style="display:none">
+        <div class="card-label">Other candidates</div>
+        <div id="r-candidates"></div>
+      </div>
+
+      <!-- Recent sightings -->
+      <div class="info-card" id="card-sightings" style="display:none">
+        <div class="card-label">Recent sightings near you</div>
+        <div id="r-sightings"></div>
+      </div>
+
+    </div><!-- #results -->
+  </div><!-- .panel-info -->
+</div><!-- .workspace -->
+
+<!-- ══ Nearby notable birds ══════════════════════════════════════════ -->
+<div class="nearby-section">
+  <div class="section-header">Notable birds spotted nearby</div>
+  <div class="nearby-grid" id="nearby-grid">
+    <div class="empty-state">Loading regional sightings…</div>
+  </div>
+</div>
+
+<footer>
+  <span>BirdLens · BioCLIP 2 (CVPR'24) + eBird API</span>
+  <span>
+    <a href="https://ebird.org" target="_blank" rel="noopener noreferrer">eBird</a> ·
+    <a href="https://github.com/Imageomics/pybioclip" target="_blank" rel="noopener noreferrer">pybioclip</a> ·
+    <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer">iNaturalist</a>
+  </span>
+</footer>
+
+<div id="toast" role="alert" aria-live="assertive"></div>
+
+<script>
+'use strict';
+
+// ── Constants ─────────────────────────────────────────────────────
+const MAX_MB       = 20;
+const ALLOWED_MIME = new Set(['image/jpeg','image/png','image/webp','image/heic','image/heif']);
+
+// ── Refs ──────────────────────────────────────────────────────────
+const uploadZone      = document.getElementById('upload-zone');
+const fileInput       = document.getElementById('file-input');
+const uploadPH        = document.getElementById('upload-placeholder');
+const previewCont     = document.getElementById('preview-container');
+const previewImg      = document.getElementById('preview-img');
+const previewMsg      = document.getElementById('preview-message');
+const scannerOverlay  = document.getElementById('scanner-overlay');
+const imageActions    = document.getElementById('image-actions');
+const fileMeta        = document.getElementById('file-meta');
+const btnChange       = document.getElementById('btn-change');
+const btnIdentify     = document.getElementById('btn-identify');
+const idleState       = document.getElementById('idle-state');
+const resultsDiv      = document.getElementById('results');
+const regionSelect    = document.getElementById('region-select');
+
+let selectedFile = null;
+
+// ── Upload / drag-drop ────────────────────────────────────────────
+fileInput.addEventListener('change', e => { if (e.target.files[0]) tryLoad(e.target.files[0]); });
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) tryLoad(f);
+});
+
+function tryLoad(file) {
+  if (!ALLOWED_MIME.has(file.type)) { showToast('Unsupported type — use JPG, PNG, WEBP, or HEIC.'); return; }
+  if (file.size > MAX_MB * 1024 * 1024) { showToast('File too large (max ' + MAX_MB + ' MB).'); return; }
+  loadFile(file);
+}
+
+function loadFile(file) {
+  selectedFile = file;
+
+  previewCont.classList.remove('preview-error');
+  uploadPH.style.display   = 'none';
+  console.log(uploadPH);
+  console.log(uploadPH.style.display);
+  previewCont.style.display = 'flex';
+  uploadZone.classList.add('has-image');
+
+  // File action bar
+  imageActions.classList.add('visible');
+  fileMeta.textContent = file.name.slice(0,36) + (file.name.length > 36 ? '…' : '') + '  ·  ' + fmtBytes(file.size);
+
+  // Clear previous results
+  idleState.style.display  = 'flex';
+  resultsDiv.style.display = 'none';
+  resultsDiv.classList.remove('visible');
+
+  // Load preview
+  previewImg.onerror = () => previewCont.classList.add('preview-error');
+  previewImg.onload  = () => previewCont.classList.remove('preview-error');
+  const reader = new FileReader();
+  reader.onload  = e => { previewImg.src = e.target.result; };
+  reader.onerror = () => { previewCont.classList.add('preview-error'); showToast('Could not preview this image.'); };
+  reader.readAsDataURL(file);
+}
+
+btnChange.addEventListener('click', () => {
+  selectedFile = null;
+  fileInput.value = '';
+  previewImg.src = '';
+  previewCont.classList.remove('preview-error');
+  previewCont.style.display = 'none';
+  uploadPH.style.display    = '';
+  uploadZone.classList.remove('has-image');
+  imageActions.classList.remove('visible');
+  idleState.style.display  = 'flex';
+  resultsDiv.style.display = 'none';
+  resultsDiv.classList.remove('visible');
+  fileInput.click();
+});
+
+// ── Identify ──────────────────────────────────────────────────────
+btnIdentify.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  btnIdentify.disabled = true;
+  scannerOverlay.classList.add('active');
+
+  const form = new FormData();
+  form.append('image', selectedFile);
+  form.append('region', regionSelect.value);
+
+  try {
+    const resp = await fetch('/identify', { method: 'POST', body: form });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast(err.error || 'Server error (' + resp.status + ')');
+      return;
+    }
+    const data = await resp.json();
+    if (data.error) { showToast(data.error); return; }
+    renderResults(data);
+  } catch {
+    showToast('Network error — is the server running?');
+  } finally {
+    scannerOverlay.classList.remove('active');
+    btnIdentify.disabled = false;
+  }
+});
+
+// ── Render ────────────────────────────────────────────────────────
+function renderResults(data) {
+  const { predictions, ebird, sightings, wikipedia, inat } = data;
+  const best = predictions[0];
+
+  // Names
+  setText('r-common-name',    best.common_name);
+  setText('r-scientific-name', best.scientific_name);
+
+  // Confidence ring (r=30, circ=188.4)
+  const circ   = 188.4;
+  const offset = circ - (best.score / 100) * circ;
+  const colour = best.score > 74 ? 'var(--feather)' : best.score > 44 ? 'var(--amber)' : 'var(--text-muted)';
+  setTimeout(() => {
+    const rf = document.getElementById('ring-fill');
+    rf.style.strokeDashoffset = offset;
+    rf.style.stroke = colour;
+    const rp = document.getElementById('ring-pct');
+    rp.textContent = best.score.toFixed(1) + '%';
+    rp.style.color = colour;
+  }, 80);
+
+  // Taxonomy chips
+  const chipData = [
+    ['Order',  best.order  || (ebird && ebird.order)],
+    ['Family', best.family || (ebird && ebird.family_name)],
+    ['Genus',  best.genus],
+    ['Cat.',   ebird && ebird.category],
+  ];
+  document.getElementById('r-taxonomy').innerHTML = chipData
+    .filter(([,v]) => v)
+    .map(([k,v]) => '<div class="chip"><strong>' + esc(k) + ':</strong> ' + esc(v) + '</div>').join('');
+
+  // Quick stats
+  const qs = [];
+  if (inat && inat.conservation_status) {
+    const cls = statusCls(inat.conservation_status);
+    qs.push(['Conservation', '<span class="qv ' + cls + '">' + esc(inat.conservation_status) + '</span>']);
+  }
+  if (inat && inat.observations_count)
+    qs.push(['iNat Obs.', '<span class="qv">' + inat.observations_count.toLocaleString() + '</span>']);
+  if (ebird && ebird.family_name)
+    qs.push(['Family', '<span class="qv">' + esc(ebird.family_name) + '</span>']);
+  if (ebird && ebird.species_code)
+    qs.push(['eBird code', '<span class="qv">' + esc(ebird.species_code) + '</span>']);
+  if (sightings && sightings.length)
+    qs.push(['Sightings', '<span class="qv">' + sightings.length + ' nearby</span>']);
+  document.getElementById('r-qstats').innerHTML = qs
+    .map(([l,v]) => '<div class="qstat"><div class="ql">' + esc(l) + '</div><div>' + v + '</div></div>').join('');
+
+  // External links
+  const lnks = [];
+  if (ebird && ebird.ebird_url)
+    lnks.push(safeLink(ebird.ebird_url, '🐦 eBird'));
+  if (wikipedia && wikipedia.wiki_url)
+    lnks.push(safeLink(wikipedia.wiki_url, '📖 Wikipedia'));
+  lnks.push(safeLink('https://www.inaturalist.org/taxa/search?q=' + encodeURIComponent(best.scientific_name), '🌿 iNaturalist'));
+  document.getElementById('r-links').innerHTML = lnks.join('');
+
+  // Wikipedia
+  showCard('card-wiki', wikipedia && wikipedia.extract, () => {
+    setText('r-wiki-extract', wikipedia.extract);
+    const wl = document.getElementById('r-wiki-link');
+    wl.href = wikipedia.wiki_url || '#';
+    wl.style.display = wikipedia.wiki_url ? '' : 'none';
+  });
+
+  // Fun facts
+  const facts = buildFacts(best, ebird, inat);
+  showCard('card-facts', facts.length, () => {
+    document.getElementById('r-facts').innerHTML = facts
+      .map(f => '<div class="fact-row"><div class="fact-dot"></div><div class="fact-text">' + f + '</div></div>').join('');
+  });
+
+  // iNat data
+  const inatRows = [];
+  if (inat && inat.observations_count)   inatRows.push(['Observations (iNat)', inat.observations_count.toLocaleString()]);
+  if (inat && inat.conservation_status)  inatRows.push(['Conservation (IUCN)', inat.conservation_status]);
+  if (ebird && ebird.species_code)       inatRows.push(['eBird species code',  ebird.species_code]);
+  if (ebird && ebird.family_code)        inatRows.push(['eBird family code',   ebird.family_code]);
+  if (ebird && ebird.taxon_order)        inatRows.push(['Taxon order #',        String(ebird.taxon_order)]);
+  showCard('card-inat', inatRows.length, () => {
+    document.getElementById('r-inat-stats').innerHTML = inatRows
+      .map(([l,v]) => '<div class="data-row"><span class="d-lbl">' + esc(l) + '</span><span class="d-val">' + esc(v) + '</span></div>').join('');
+  });
+
+  // Other candidates
+  showCard('card-candidates', predictions.length > 1, () => {
+    document.getElementById('r-candidates').innerHTML = predictions.slice(1)
+      .map((p,i) =>
+        '<div class="cand-row">' +
+          '<div class="cand-rank">#' + (i+2) + '</div>' +
+          '<div class="cand-names">' +
+            '<div class="cand-cn">' + esc(p.common_name) + '</div>' +
+            '<div class="cand-sn">' + esc(p.scientific_name) + '</div>' +
+          '</div>' +
+          '<div class="cand-bar">' +
+            '<div class="bar-bg"><div class="bar-fill" data-w="' + p.score + '"></div></div>' +
+            '<div class="bar-pct">' + p.score + '%</div>' +
+          '</div>' +
+        '</div>'
+      ).join('');
+    setTimeout(() => {
+      document.querySelectorAll('.bar-fill').forEach(el => { el.style.width = el.dataset.w + '%'; });
+    }, 120);
+  });
+
+  // Sightings
+  document.getElementById('card-sightings').style.display = '';
+  if (sightings && sightings.length) {
+    document.getElementById('r-sightings').innerHTML = sightings
+      .map(s =>
+        '<div class="sighting-item">' +
+          '<div class="sighting-dot"></div>' +
+          '<div>' +
+            '<div class="sighting-loc">' + esc(s.location) + '</div>' +
+            '<div class="sighting-meta">' + esc(s.date) + '</div>' +
+          '</div>' +
+          '<div class="sighting-count">×' + esc(String(s.count)) + '</div>' +
+        '</div>'
+      ).join('');
+  } else {
+    document.getElementById('r-sightings').innerHTML = '<div class="empty-state">No recent sightings in this region.</div>';
+  }
+
+  // Show results, hide idle
+  idleState.style.display  = 'none';
+  resultsDiv.style.display = 'block';
+  setTimeout(() => resultsDiv.classList.add('visible'), 10);
+
+  // On mobile: scroll info panel into view
+  if (window.innerWidth <= 780) {
+    document.querySelector('.panel-info').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+// ── Fun facts ─────────────────────────────────────────────────────
+function buildFacts(best, ebird, inat) {
+  const out   = [];
+  const order = (best.order || '').toLowerCase();
+
+  if (ebird && ebird.family_name)
+    out.push('Belongs to the <strong>' + esc(ebird.family_name) + '</strong> family (' + esc(best.family || ebird.family_code || '') + ').');
+
+  const orderMap = {
+    passeriform:  'Passerines make up over half of all bird species — the largest order on Earth.',
+    galliform:    'Galliforms are ground-dwelling birds in the same order as pheasants, turkeys, and peacocks.',
+    falconiform:  'Falcons have eyesight up to 8× sharper than humans and can spot prey from a kilometre away.',
+    accipitriform:'Accipitriformes (hawks, eagles, kites) ride thermals for hours without a single wingbeat.',
+    columbiform:  'Pigeons and doves navigate home across hundreds of kilometres using Earth\'s magnetic field.',
+    psittaciform: 'Parrots are among the most cognitively advanced birds, capable of context-aware speech mimicry.',
+    coraciiform:  'Coraciiformes (kingfishers, rollers, bee-eaters) are celebrated for jewel-bright plumage and precision diving.',
+    strigiform:   'Owls rotate their heads 270° and use asymmetrically placed ears to locate prey in total darkness.',
+    anseriform:   'Waterfowl can launch near-vertically from water and many migrate thousands of kilometres each year.',
+    apodiform:    'Swifts spend virtually their entire lives airborne — feeding, sleeping, and even mating on the wing.',
+    piciform:     'Woodpeckers drum at up to 20 strikes per second, cushioned by a hyoid bone that wraps around their skull.',
+    cuculiform:   'Many cuckoos are brood parasites, laying eggs that precisely mimic those of their host species.',
+    charadriiform:'Shorebirds hold records for the longest non-stop migrations of any animal on Earth.',
+  };
+  for (const [k, v] of Object.entries(orderMap)) {
+    if (order.includes(k)) { out.push(v); break; }
+  }
+
+  const cnt = inat && inat.observations_count;
+  if (cnt > 1e6)
+    out.push('Over <strong>' + (cnt/1e6).toFixed(1) + ' million</strong> iNaturalist observations — one of the most recorded birds worldwide.');
+  else if (cnt > 1e5)
+    out.push('<strong>' + cnt.toLocaleString() + '</strong> iNaturalist records make this a widely studied species.');
+
+  const st = ((inat && inat.conservation_status) || '').toLowerCase();
+  if      (st.includes('critic'))                out.push('⚠️ <strong>Critically Endangered</strong> — extremely high risk of extinction in the wild.');
+  else if (st.includes('endanger'))              out.push('⚠️ <strong>Endangered</strong> — significant population decline recorded.');
+  else if (st.includes('vulner'))                out.push('<strong>Vulnerable</strong> (IUCN) — declining populations warrant conservation action.');
+  else if (st.includes('least') || st === 'lc') out.push('<strong>Least Concern</strong> (IUCN) — populations are currently stable.');
+
+  return out.slice(0, 3);
+}
+
+// ── Nearby birds ──────────────────────────────────────────────────
+async function loadNearby() {
+  const grid = document.getElementById('nearby-grid');
+  grid.innerHTML = '<div class="empty-state">Loading…</div>';
+  try {
+    const resp = await fetch('/nearby?region=' + encodeURIComponent(regionSelect.value));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    if (!data.birds || !data.birds.length) {
+      grid.innerHTML = '<div class="empty-state">No notable sightings found for this region.</div>';
+      return;
+    }
+    grid.innerHTML = data.birds.map(b =>
+      '<div class="nearby-card">' +
+        '<div class="ncn">' + esc(b.common_name) + '</div>' +
+        '<div class="nsn">' + esc(b.scientific_name) + '</div>' +
+        '<div class="nloc">📍 ' + esc(b.location) + '</div>' +
+        '<div class="ndate">' + esc(b.date) + (b.count && b.count !== '?' ? ' · ×' + esc(String(b.count)) : '') + '</div>' +
+      '</div>'
+    ).join('');
+  } catch {
+    grid.innerHTML = '<div class="empty-state">Could not load regional sightings.</div>';
+  }
+}
+regionSelect.addEventListener('change', loadNearby);
+loadNearby();
+
+// ── Helpers ───────────────────────────────────────────────────────
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function setText(id, val) { document.getElementById(id).textContent = val || '—'; }
+function safeLink(href, label) {
+  const safe = /^https?:\/\//.test(href) ? href : '#';
+  return '<a class="ext-link" href="' + safe + '" target="_blank" rel="noopener noreferrer">' + label + '</a>';
+}
+function showCard(id, cond, fill) {
+  const el = document.getElementById(id);
+  if (cond) { el.style.display = ''; fill(); } else { el.style.display = 'none'; }
+}
+function statusCls(s) {
+  const l = (s||'').toLowerCase();
+  if (l.includes('critic'))               return 's-cr';
+  if (l.includes('endanger'))             return 's-en';
+  if (l.includes('vulner'))               return 's-vu';
+  if (l.includes('near'))                 return 's-nt';
+  if (l.includes('least') || l === 'lc') return 's-lc';
+  return '';
+}
+function fmtBytes(b) {
+  if (b < 1024)    return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 4500);
+}
+</script>
+</body>
+</html>
