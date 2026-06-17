@@ -181,4 +181,4 @@ BirdLens is intended for educational and wildlife identification purposes. Speci
 
 ## Author
 
-Developed by Shrey as a personal project to explore AI-powered wildlife identification and modern web development.
+Developed by Shreyansh Dharne as a personal project to explore AI-powered wildlife identification and modern web development.
