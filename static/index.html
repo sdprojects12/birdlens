@@ -745,18 +745,20 @@ footer a:hover { color: var(--feather); }
       <button class="btn-change"   id="btn-change"   type="button">↩ Change</button>
       <button class="btn-identify" id="btn-identify" type="button">🔍 Identify</button>
     </div>
+
+    <button class="history-toggle" id="history-toggle">
+      Recent Identifications
+      <span class="history-toggle-arrow">▼</span>
+    </button>
+
+    <div class="history-drawer" id="history-drawer">
+      <div class="history-empty" id="history-empty">
+        No birds identified yet.
+      </div>
+    </div>
   </div>
 
-<button class="history-toggle" id="history-toggle">
-  Recent Identifications
-  <span class="history-toggle-arrow">▼</span>
-</button>
 
-<div class="history-drawer" id="history-drawer">
-  <div class="history-empty" id="history-empty">
-    No birds identified yet.
-  </div>
-</div>
 
   <!-- ── Right: info panel ──────────────────────────────────────── -->
   <div class="panel-info">
