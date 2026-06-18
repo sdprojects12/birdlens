@@ -108,7 +108,7 @@ header {
 
 /* ── Left panel: image ───────────────────────────────────────────── */
 .panel-image {
-  position: sticky; top: 85px;
+  position: sticky; top: 90px;
   align-self: start;
   height: fit-content; min-height: 550px;
   display: flex; flex-direction: column;
@@ -525,6 +525,143 @@ footer a:hover { color: var(--feather); }
   .nearby-section { padding: 24px 18px 40px; }
   footer { padding: 16px 18px; }
 }
+
+/* ══ Low-confidence / unable-to-identify panel ══════════════════════ */
+#unidentified {
+  display: none;
+  animation: slideIn 0.45s cubic-bezier(0.22,1,0.36,1);
+}
+#unidentified.visible { display: block; }
+
+.unid-card {
+  background: rgba(40,22,18,0.82);
+  border: 1px solid rgba(184,56,32,0.30);
+  border-radius: 10px;
+  padding: 28px 24px;
+  text-align: center;
+}
+.unid-icon { margin: 0 auto 16px; opacity: 0.55; }
+.unid-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.2rem; font-weight: 600;
+  color: #e8c4b8; margin-bottom: 8px;
+}
+.unid-body {
+  font-size: 0.83rem; color: var(--text-muted);
+  line-height: 1.7; max-width: 320px; margin: 0 auto 20px;
+}
+.unid-best {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 7px; padding: 10px 16px;
+  font-size: 0.8rem; color: var(--text-soft);
+  margin-bottom: 16px;
+}
+.unid-best-score {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem; color: var(--text-muted);
+  background: rgba(255,255,255,0.06);
+  padding: 2px 8px; border-radius: 4px;
+}
+.unid-tips {
+  text-align: left;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 7px; padding: 14px 16px;
+  margin-top: 4px;
+}
+.unid-tips p {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.62rem; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+.unid-tip {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 0.8rem; color: var(--text-soft);
+  line-height: 1.5; margin-bottom: 7px;
+}
+.unid-tip:last-child { margin-bottom: 0; }
+.unid-tip-dot {
+  flex-shrink: 0; margin-top: 6px;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--text-muted);
+}
+
+/* ══ History drawer ══════════════════════════════════════════════════ */
+.history-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; background: none; border: none;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: 'DM Mono', monospace; font-size: 0.68rem;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; transition: color 0.2s;
+}
+.history-toggle:hover { color: var(--text-soft); }
+.history-toggle-arrow {
+  transition: transform 0.25s;
+  font-size: 0.6rem;
+}
+.history-toggle.open .history-toggle-arrow { transform: rotate(180deg); }
+
+.history-drawer {
+  display: none;
+  overflow-y: auto;
+  max-height: 260px;
+  border-top: 1px solid var(--border);
+  background: rgba(10,14,11,0.6);
+}
+.history-drawer.open { display: block; }
+
+.history-empty {
+  padding: 18px 16px;
+  font-size: 0.78rem; color: var(--text-muted);
+  text-align: center;
+}
+
+.history-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.history-item:last-child { border-bottom: none; }
+.history-item:hover { background: rgba(145,176,123,0.06); }
+
+.hist-thumb {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: var(--canopy);
+  border: 1px solid var(--border);
+}
+.hist-info { flex: 1; min-width: 0; }
+.hist-name {
+  font-size: 0.82rem; color: var(--text-main);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hist-sci {
+  font-family: 'Playfair Display', serif; font-style: italic;
+  font-size: 0.68rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hist-score {
+  flex-shrink: 0;
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.hist-score.hi  { color: var(--feather); }
+.hist-score.mid { color: var(--amber); }
+.hist-score.lo  { color: #a05040; }
+
+/* unidentified history items */
+.hist-unid .hist-name { color: var(--text-muted); font-style: italic; }
+
 </style>
 </head>
 <body>
@@ -623,6 +760,36 @@ footer a:hover { color: var(--feather); }
       </div>
       <h3>Identify a bird</h3>
       <p>Upload a photo on the left and click <em>Identify</em> — BirdLens will recognise the species and show you everything about it here.</p>
+    </div>
+
+    
+    <!-- Unable to identify panel (shown when confidence < 15%) -->
+    <div id="unidentified">
+      <div class="unid-card">
+        <div class="unid-icon">
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+            <circle cx="26" cy="26" r="24" stroke="rgba(184,56,32,0.4)" stroke-width="1.5"/>
+            <path d="M26 16 L26 28" stroke="#c87060" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="26" cy="34" r="2" fill="#c87060"/>
+          </svg>
+        </div>
+        <div class="unid-title">Unable to identify bird</div>
+        <p class="unid-body">
+          The best match has a confidence below 15%, which usually means this photo
+          doesn't clearly show a bird, or the image quality is too low.
+        </p>
+        <div class="unid-best">
+          <span>Best guess: <strong id="unid-best-name">—</strong></span>
+          <span class="unid-best-score" id="unid-best-score">—</span>
+        </div>
+        <div class="unid-tips">
+          <p>Tips for a better result</p>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span>Make sure the bird is clearly visible and in focus</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span>Crop out distracting backgrounds before uploading</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span>Shoot in good lighting — avoid backlit silhouettes</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span>A single bird fills more of the frame works best</span></div>
+        </div>
+      </div>
     </div>
 
     <!-- Results (hidden until identification) -->
@@ -1057,6 +1224,105 @@ function showToast(msg) {
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 4500);
 }
+
+
+// ══ Low-confidence threshold ═════════════════════════════════════════
+const CONFIDENCE_THRESHOLD = 15; // percent
+
+const unidDiv    = document.getElementById('unidentified');
+const histToggle = document.getElementById('history-toggle');
+const histDrawer = document.getElementById('history-drawer');
+const histEmpty  = document.getElementById('history-empty');
+
+// ── Patch renderResults to gate on confidence ─────────────────────
+const _origRender = renderResults;
+renderResults = function(data) {
+  const score = data.predictions[0].score;
+
+  if (score < CONFIDENCE_THRESHOLD) {
+    // Show unidentified panel, hide normal results
+    document.getElementById('unid-best-name').textContent  = data.predictions[0].common_name;
+    document.getElementById('unid-best-score').textContent = score.toFixed(1) + '%';
+
+    idleState.style.display  = 'none';
+    resultsDiv.style.display = 'none';
+    resultsDiv.classList.remove('visible');
+    unidDiv.classList.add('visible');
+
+    // Still record in history as unidentified
+    addHistory(null, '(Unidentified)', '', score, true);
+  } else {
+    unidDiv.classList.remove('visible');
+    _origRender(data);
+    // Record in history after successful render
+    const best = data.predictions[0];
+    const thumb = previewImg.src || null;
+    addHistory(thumb, best.common_name, best.scientific_name, best.score, false);
+  }
+};
+
+// ── History ───────────────────────────────────────────────────────
+const MAX_HISTORY = 12;
+let history = [];   // [{thumb, name, sci, score, unid, dataSnapshot}]
+
+function addHistory(thumb, name, sci, score, unid) {
+  // Store a snapshot of the current previewImg src as thumbnail
+  const entry = {
+    thumb: previewImg.src || null,
+    name, sci, score, unid,
+    id: Date.now()
+  };
+  history.unshift(entry);
+  if (history.length > MAX_HISTORY) history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!history.length) {
+    histEmpty.style.display = '';
+    return;
+  }
+  histEmpty.style.display = 'none';
+
+  // Remove old items (keep empty div)
+  [...histDrawer.querySelectorAll('.history-item')].forEach(el => el.remove());
+
+  history.forEach(entry => {
+    const scoreClass = entry.score > 74 ? 'hi' : entry.score > 44 ? 'mid' : 'lo';
+    const item = document.createElement('div');
+    item.className = 'history-item' + (entry.unid ? ' hist-unid' : '');
+    item.innerHTML =
+      (entry.thumb
+        ? '<img class="hist-thumb" src="' + esc(entry.thumb) + '" alt="">'
+        : '<div class="hist-thumb" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem">?</div>'
+      ) +
+      '<div class="hist-info">' +
+        '<div class="hist-name">' + esc(entry.name) + '</div>' +
+        (entry.sci ? '<div class="hist-sci">' + esc(entry.sci) + '</div>' : '') +
+      '</div>' +
+      '<div class="hist-score ' + scoreClass + '">' + entry.score.toFixed(1) + '%</div>';
+
+    // Clicking a history thumbnail reloads that image into the preview
+    item.addEventListener('click', () => {
+      if (entry.thumb && !entry.unid) {
+        previewImg.src = entry.thumb;
+        uploadPH.style.display    = 'none';
+        previewCont.style.display = 'flex';
+        uploadZone.classList.add('has-image');
+        imageActions.classList.add('visible');
+      }
+    });
+
+    histDrawer.appendChild(item);
+  });
+}
+
+// Toggle drawer
+histToggle.addEventListener('click', () => {
+  histToggle.classList.toggle('open');
+  histDrawer.classList.toggle('open');
+});
+
 </script>
 </body>
 </html>
