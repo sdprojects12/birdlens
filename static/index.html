@@ -747,6 +747,17 @@ footer a:hover { color: var(--feather); }
     </div>
   </div>
 
+<button class="history-toggle" id="history-toggle">
+  Recent Identifications
+  <span class="history-toggle-arrow">▼</span>
+</button>
+
+<div class="history-drawer" id="history-drawer">
+  <div class="history-empty" id="history-empty">
+    No birds identified yet.
+  </div>
+</div>
+
   <!-- ── Right: info panel ──────────────────────────────────────── -->
   <div class="panel-info">
 
@@ -945,6 +956,7 @@ function loadFile(file) {
 btnChange.addEventListener('click', () => {
   selectedFile = null;
   fileInput.value = '';
+  unidDiv.classList.remove('visible');
   previewImg.src = '';
   previewCont.classList.remove('preview-error');
   previewCont.style.display = 'none';
