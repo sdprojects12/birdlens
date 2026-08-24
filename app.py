@@ -26,12 +26,12 @@ app = Flask(__name__, static_folder="static")
 # Load API key from environment first; fall back to hardcoded value.
 # Preferred: set EBIRD_API_KEY in your shell so the key is never in source.
 EBIRD_API_KEY = os.environ.get("EBIRD_API_KEY", "k0rnvug008l9")
-EBIRD_BASE    = "https://api.ebird.org/v2"
+EBIRD_BASE = "https://api.ebird.org/v2"
 
 # Upload limits
-MAX_UPLOAD_BYTES  = 20 * 1024 * 1024          # 20 MB hard cap
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB hard cap
 ALLOWED_MIMETYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
-ALLOWED_EXTENSIONS= {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 
 # Whitelist of valid eBird region codes (2-letter country or country-state)
 REGION_RE = re.compile(r"^[A-Z]{2}(-[A-Z0-9]{1,3})?$")
@@ -39,8 +39,10 @@ REGION_RE = re.compile(r"^[A-Z]{2}(-[A-Z0-9]{1,3})?$")
 # External request timeout
 TIMEOUT = 12
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# OSEA model files live here (downloaded automatically on first load)
+OSEA_MODEL_DIR = PROJECT_ROOT / "models"
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def ebird_headers() -> dict:
     return {"X-eBirdApiToken": EBIRD_API_KEY}
 
@@ -64,58 +66,121 @@ def sanitize_text(value, max_len: int = 512) -> str:
     return value[:max_len].replace("<", "").replace(">", "").replace("&", "and")
 
 
-# ── BioCLIP ───────────────────────────────────────────────────────────────────
+# ── OSEA ──────────────────────────────────────────────────────────────────────
+# Loaded once at application startup and reused for every request (see bottom
+# of this file). Do NOT construct/load a new OSEAModel per-request.
+from osea_model import OSEAModel
+from osea_confidence import decide, IdentificationState, DEFAULT_THRESHOLDS
 
-BIOCLIP_CLASSIFIER = None
-
-
-def get_bioclip_classifier():
-    global BIOCLIP_CLASSIFIER
-    if BIOCLIP_CLASSIFIER is None:
-        from bioclip import Rank, TreeOfLifeClassifier
-
-        log.info("Loading BioCLIP classifier")
-        classifier = TreeOfLifeClassifier()
-        bird_filter = classifier.create_taxa_filter(Rank.CLASS, ["Aves"])
-        classifier.apply_filter(bird_filter)
-        log.info("BioCLIP classifier loaded with Aves-only label filter")
-        BIOCLIP_CLASSIFIER = classifier
-    return BIOCLIP_CLASSIFIER
+OSEA_MODEL: OSEAModel | None = None
 
 
-def classify_with_bioclip(image_path: str, top_k: int = 5) -> list:
+def get_osea_model() -> OSEAModel:
+    """
+    Return the process-wide OSEA model instance. Loaded once via
+    load_osea_model() at startup; this getter just guards against the
+    (unexpected) case of a route firing before startup finished.
+    """
+    global OSEA_MODEL
+    if OSEA_MODEL is None:
+        log.warning("OSEA model accessed before startup load completed — loading now")
+        OSEA_MODEL = OSEAModel(model_dir=OSEA_MODEL_DIR)
+        OSEA_MODEL.load(verbose=True)
+    return OSEA_MODEL
+
+
+def load_osea_model() -> None:
+    """Load SSD MobileNet detector + OSEA classifier + bird_info.json once."""
+    global OSEA_MODEL
+    log.info("Loading OSEA models (detector + classifier + labels)")
+    model = OSEAModel(model_dir=OSEA_MODEL_DIR)
+    model.load(verbose=True)
+    OSEA_MODEL = model
+    log.info(
+        "OSEA ready: %d species loaded from bird_info.json", model.num_species
+    )
+
+
+def classify_with_osea(image_path: str, top_k: int = 5) -> dict:
+    """
+    Run the OSEA pipeline (detect -> crop -> classify) on one image and
+    normalize the result into the same predictions-list shape BioCLIP used
+    to produce, plus an explicit confidence decision.
+
+    Returns a dict:
+      {
+        "state": "not_a_bird" | "unable_to_identify" | "identified",
+        "reason": str,
+        "detector_confidence": float,
+        "top1_score": float,
+        "top2_score": float,
+        "margin": float,
+        "predictions": [ {common_name, scientific_name, score, ...}, ... ],
+      }
+    """
     try:
-        from bioclip import Rank
-        classifier = get_bioclip_classifier()
-        log.info("Running BioCLIP on %s", image_path)
-        predictions = classifier.predict(image_path, Rank.SPECIES, k=top_k)
+        model = get_osea_model()
+        detection, predictions, timing = model.predict(image_path, k=top_k, use_detector=True)
+
         results = []
-        for pred in predictions:
-            genus   = sanitize_text(pred.get("genus",   ""), 80)
-            species = sanitize_text(pred.get("species_epithet", ""), 80)
-            scientific_name = sanitize_text(pred.get("species", ""), 120)
-            if not scientific_name:
-                scientific_name = f"{genus} {species}".strip()
+        for p in predictions:
             results.append({
-                "common_name":     sanitize_text(pred.get("common_name", "Unknown"), 120),
-                "scientific_name": scientific_name,
-                "genus":           genus,
-                "species":         species,
-                "family":          sanitize_text(pred.get("family", ""), 80),
-                "order":           sanitize_text(pred.get("order",  ""), 80),
-                "score":           round(float(pred.get("score", 0)) * 100, 2),
+                "common_name": sanitize_text(p.common_name, 120) or "Unknown",
+                "scientific_name": sanitize_text(p.scientific_name, 120),
+                # Keep the 0-100 scale the existing frontend/API already expects.
+                "score": round(float(p.raw_score) * 100, 2),
             })
-        return results
-    except ImportError:
-        log.exception("pybioclip is not installed in the Python environment running Flask")
-        return [{"error": "BioCLIP is not installed in the Python environment running Flask. Activate the project venv and install requirements."}]
+
+        top1 = predictions[0].raw_score if predictions else 0.0
+        top2 = predictions[1].raw_score if len(predictions) > 1 else 0.0
+
+        decision = decide(
+            detector_confidence=detection.confidence,
+            detector_detected=detection.detected,
+            top1_score=top1,
+            top2_score=top2,
+            thresholds=DEFAULT_THRESHOLDS,
+        )
+
+        return {
+            "state": decision.state.value,
+            "reason": decision.reason,
+            "detector_detected": detection.detected,
+            "detector_confidence": round(float(decision.detector_confidence), 4),
+            "detector_box": {
+                "ymin": round(float(detection.box_ymin), 4),
+                "xmin": round(float(detection.box_xmin), 4),
+                "ymax": round(float(detection.box_ymax), 4),
+                "xmax": round(float(detection.box_xmax), 4),
+            },
+            "top1_score": round(float(decision.top1_score), 4),
+            "top2_score": round(float(decision.top2_score), 4),
+            "margin": round(float(decision.margin), 4),
+            "predictions": results,
+            "timing_ms": {
+                "detector": round(timing["detector_s"] * 1000, 1),
+                "preprocess": round(timing["preprocess_s"] * 1000, 1),
+                "classifier": round(timing["classifier_s"] * 1000, 1),
+                "total": round(timing["total_s"] * 1000, 1),
+            },
+        }
     except Exception as e:
-        log.exception("BioCLIP error")
-        return [{"error": f"BioCLIP failed: {e}"}]
+        log.exception("OSEA error")
+        return {
+            "state": IdentificationState.UNABLE_TO_IDENTIFY.value,
+            "reason": f"OSEA failed: {e}",
+            "detector_detected": False,
+            "detector_confidence": 0.0,
+            "detector_box": {"ymin": 0.0, "xmin": 0.0, "ymax": 0.0, "xmax": 0.0},
+            "top1_score": 0.0,
+            "top2_score": 0.0,
+            "margin": 0.0,
+            "predictions": [],
+            "error": f"OSEA failed: {e}",
+        }
 
 
 # ── eBird ─────────────────────────────────────────────────────────────────────
-
 def get_ebird_taxonomy(scientific_name: str) -> dict:
     if not scientific_name:
         return {}
@@ -131,15 +196,15 @@ def get_ebird_taxonomy(scientific_name: str) -> dict:
             t = data[0]
             code = sanitize_text(t.get("speciesCode", ""), 20)
             return {
-                "common_name":     sanitize_text(t.get("comName", ""),      120),
-                "scientific_name": sanitize_text(t.get("sciName", ""),      120),
-                "species_code":    code,
-                "order":           sanitize_text(t.get("order", ""),         80),
-                "family_name":     sanitize_text(t.get("familyComName", ""), 80),
-                "family_code":     sanitize_text(t.get("familyCode", ""),    20),
-                "category":        sanitize_text(t.get("category", ""),      40),
-                "taxon_order":     t.get("taxonOrder", ""),
-                "ebird_url":       f"https://ebird.org/species/{code}" if code else "",
+                "common_name": sanitize_text(t.get("comName", ""), 120),
+                "scientific_name": sanitize_text(t.get("sciName", ""), 120),
+                "species_code": code,
+                "order": sanitize_text(t.get("order", ""), 80),
+                "family_name": sanitize_text(t.get("familyComName", ""), 80),
+                "family_code": sanitize_text(t.get("familyCode", ""), 20),
+                "category": sanitize_text(t.get("category", ""), 40),
+                "taxon_order": t.get("taxonOrder", ""),
+                "ebird_url": f"https://ebird.org/species/{code}" if code else "",
             }
     except Exception as e:
         log.warning("eBird taxonomy error: %s", e)
@@ -159,21 +224,20 @@ def get_recent_sightings(species_code: str, region: str = "IN-MH") -> list:
         return [
             {
                 "location": sanitize_text(s.get("locName", ""), 200),
-                "date":     sanitize_text(s.get("obsDt",   ""),  30),
-                "count":    s.get("howMany", "?"),
-                "lat":      s.get("lat"),
-                "lng":      s.get("lng"),
+                "date": sanitize_text(s.get("obsDt", ""), 30),
+                "count": s.get("howMany", "?"),
+                "lat": s.get("lat"),
+                "lng": s.get("lng"),
             }
             for s in r.json()[:8]
             if isinstance(s, dict)
         ]
     except Exception as e:
         log.warning("eBird sightings error: %s", e)
-    return []
+        return []
 
 
 # ── Wikipedia ─────────────────────────────────────────────────────────────────
-
 def get_wikipedia_summary(common_name: str) -> dict:
     if not common_name:
         return {}
@@ -186,9 +250,9 @@ def get_wikipedia_summary(common_name: str) -> dict:
         if r.status_code == 200:
             d = r.json()
             return {
-                "extract":   sanitize_text(d.get("extract", ""), 700),
+                "extract": sanitize_text(d.get("extract", ""), 700),
                 "image_url": d.get("thumbnail", {}).get("source", ""),
-                "wiki_url":  d.get("content_urls", {}).get("desktop", {}).get("page", ""),
+                "wiki_url": d.get("content_urls", {}).get("desktop", {}).get("page", ""),
             }
     except Exception as e:
         log.warning("Wikipedia error: %s", e)
@@ -196,7 +260,6 @@ def get_wikipedia_summary(common_name: str) -> dict:
 
 
 # ── iNaturalist ───────────────────────────────────────────────────────────────
-
 def get_inat_info(scientific_name: str) -> dict:
     if not scientific_name:
         return {}
@@ -214,9 +277,9 @@ def get_inat_info(scientific_name: str) -> dict:
             cs = t.get("conservation_status") or {}
             return {
                 "conservation_status": sanitize_text(cs.get("status_name", ""), 60),
-                "observations_count":  int(t.get("observations_count", 0) or 0),
-                "wikipedia_url":       t.get("wikipedia_url", ""),
-                "photo":               t.get("default_photo", {}).get("medium_url", ""),
+                "observations_count": int(t.get("observations_count", 0) or 0),
+                "wikipedia_url": t.get("wikipedia_url", ""),
+                "photo": t.get("default_photo", {}).get("medium_url", ""),
             }
     except Exception as e:
         log.warning("iNat error: %s", e)
@@ -224,12 +287,11 @@ def get_inat_info(scientific_name: str) -> dict:
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
-
 @app.after_request
 def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"]        = "DENY"
-    response.headers["Referrer-Policy"]        = "strict-origin-when-cross-origin"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline'; "
@@ -253,11 +315,12 @@ def identify():
         return jsonify({"error": "No image uploaded"}), 400
 
     img_file = request.files["image"]
+    image_filename = img_file.filename or "<unnamed>"
 
     # ── Size check (read once into memory first) ──
-    img_file.stream.seek(0, 2)          # seek to end
+    img_file.stream.seek(0, 2)  # seek to end
     size = img_file.stream.tell()
-    img_file.stream.seek(0)             # rewind
+    img_file.stream.seek(0)     # rewind
     if size > MAX_UPLOAD_BYTES:
         return jsonify({"error": "File too large (max 20 MB)"}), 413
 
@@ -270,13 +333,37 @@ def identify():
     region = validate_region(request.form.get("region", "IN-MH"))
 
     # ── Save to temp file with safe extension ──
-    ext      = safe_ext(img_file.filename)
-    tmp_name = f"bioclip_{uuid.uuid4().hex}{ext}"
+    ext = safe_ext(img_file.filename)
+    tmp_name = f"osea_{uuid.uuid4().hex}{ext}"
     tmp_path = os.path.join(tempfile.gettempdir(), tmp_name)
 
     try:
         img_file.save(tmp_path)
-        predictions = classify_with_bioclip(tmp_path, top_k=5)
+        result = classify_with_osea(tmp_path, top_k=5)
+        prediction_log = ", ".join(
+            f"{p['common_name']}={p['score']:.2f}%" for p in result["predictions"]
+        ) or "none"
+        box = result["detector_box"]
+        timing = result.get("timing_ms", {})
+        log.info(
+            "\nOSEA /identify | file=%s\n"
+            "  detector: bird=%s confidence=%.4f box=(ymin=%.4f, xmin=%.4f, ymax=%.4f, xmax=%.4f)\n"
+            "  classifier top5: %s\n"
+            "  margin: top1-top2=%.4f\n"
+            "  decision: state=%s reason=%s\n"
+            "  timing_ms: detector=%.1f classifier=%.1f total=%.1f",
+            image_filename,
+            "YES" if result["detector_detected"] else "NO",
+            result["detector_confidence"],
+            box["ymin"], box["xmin"], box["ymax"], box["xmax"],
+            prediction_log,
+            result["margin"],
+            result["state"],
+            result["reason"],
+            timing.get("detector", 0.0),
+            timing.get("classifier", 0.0),
+            timing.get("total", 0.0),
+        )
     except Exception as e:
         log.error("identify error: %s", e)
         return jsonify({"error": "Server error during classification"}), 500
@@ -286,12 +373,51 @@ def identify():
         except OSError:
             pass
 
-    if not predictions or "error" in predictions[0]:
-        return jsonify({"error": predictions[0].get("error", "Classification failed")}), 500
+    if result.get("error"):
+        return jsonify({"error": result["error"]}), 500
+
+    state = result["state"]
+    predictions = result["predictions"]
+
+    # Not a bird / not confident enough -> tell the frontend plainly and
+    # skip the eBird/Wikipedia/iNat lookups (nothing to look up yet).
+    if state == IdentificationState.NOT_A_BIRD.value:
+        return jsonify({
+            "state": state,
+            "message": "No bird detected in this image.",
+            "confidence": {
+                "detector_confidence": result["detector_confidence"],
+                "top1_score": result["top1_score"],
+                "top2_score": result["top2_score"],
+                "margin": result["margin"],
+                "reason": result["reason"],
+            },
+            "predictions": predictions,
+            "region": region,
+        })
+
+    if state == IdentificationState.UNABLE_TO_IDENTIFY.value:
+        return jsonify({
+            "state": state,
+            "message": "A bird was detected, but the species could not be identified with confidence.",
+            "confidence": {
+                "detector_confidence": result["detector_confidence"],
+                "top1_score": result["top1_score"],
+                "top2_score": result["top2_score"],
+                "margin": result["margin"],
+                "reason": result["reason"],
+            },
+            "predictions": predictions,  # still returned for reference/debugging
+            "region": region,
+        })
+
+    # ── Identified: preserve existing enrichment pipeline ──
+    if not predictions:
+        return jsonify({"error": "Classification failed"}), 500
 
     best = predictions[0]
+    ebird = get_ebird_taxonomy(best["scientific_name"])
 
-    ebird    = get_ebird_taxonomy(best["scientific_name"])
     sightings = []
     if ebird and ebird.get("species_code"):
         sightings = get_recent_sightings(ebird["species_code"], region)
@@ -300,12 +426,20 @@ def identify():
     inat = get_inat_info(best["scientific_name"])
 
     return jsonify({
+        "state": state,
         "predictions": predictions,
-        "ebird":       ebird,
-        "sightings":   sightings,
-        "wikipedia":   wiki,
-        "inat":        inat,
-        "region":      region,
+        "confidence": {
+            "detector_confidence": result["detector_confidence"],
+            "top1_score": result["top1_score"],
+            "top2_score": result["top2_score"],
+            "margin": result["margin"],
+            "reason": result["reason"],
+        },
+        "ebird": ebird,
+        "sightings": sightings,
+        "wikipedia": wiki,
+        "inat": inat,
+        "region": region,
     })
 
 
@@ -321,12 +455,12 @@ def nearby():
         r.raise_for_status()
         birds = [
             {
-                "common_name":     sanitize_text(s.get("comName",     ""), 120),
-                "scientific_name": sanitize_text(s.get("sciName",     ""), 120),
-                "location":        sanitize_text(s.get("locName",     ""), 200),
-                "date":            sanitize_text(s.get("obsDt",       ""),  30),
-                "count":           s.get("howMany", "?"),
-                "species_code":    sanitize_text(s.get("speciesCode", ""),  20),
+                "common_name": sanitize_text(s.get("comName", ""), 120),
+                "scientific_name": sanitize_text(s.get("sciName", ""), 120),
+                "location": sanitize_text(s.get("locName", ""), 200),
+                "date": sanitize_text(s.get("obsDt", ""), 30),
+                "count": s.get("howMany", "?"),
+                "species_code": sanitize_text(s.get("speciesCode", ""), 20),
             }
             for s in r.json()[:12]
             if isinstance(s, dict)
@@ -338,6 +472,14 @@ def nearby():
 
 
 if __name__ == "__main__":
+    # Load OSEA once, at process startup, before serving any requests.
+    load_osea_model()
+
     # Never run debug=True in production
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     app.run(debug=debug, port=5000)
+else:
+    # Loaded under a WSGI server (gunicorn, per the Procfile) -- gunicorn
+    # imports this module once per worker process, so this still satisfies
+    # "load once, reuse across requests" per worker.
+    load_osea_model()
