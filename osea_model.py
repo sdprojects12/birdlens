@@ -26,6 +26,8 @@ from typing import Any, Optional
 
 import numpy as np
 
+from osea_confidence import DEFAULT_THRESHOLDS
+
 # ── Optional psutil (soft dependency) ────────────────────────────────────────
 try:
     import psutil as _psutil
@@ -131,7 +133,11 @@ class OSEAModel:
         det, preds = model.predict(img_path)  # call as many times as you like
     """
 
-    def __init__(self, model_dir: Path = Path("models"), detection_threshold: float = 0.5):
+    def __init__(
+        self,
+        model_dir: Path = Path("models"),
+        detection_threshold: float = DEFAULT_THRESHOLDS.detector_min_confidence,
+    ):
         self.model_dir = Path(model_dir)
         self.detection_threshold = detection_threshold
 
@@ -403,7 +409,7 @@ class OSEAModel:
             detection = Detection(False, 0.0, 0.0, 0.0, 1.0, 1.0,
                                   detector_time_s=0.0)
 
-        # ── Crop if bird detected ──
+        # ── Crop and classify only when the detector accepts the image ──
         if detection.detected:
             y0, x0, y1, x1 = detection.box_pixels(h, w)
             # add 5% padding, clamp to image bounds
@@ -414,11 +420,11 @@ class OSEAModel:
             y1 = min(h, y1 + pad_y)
             x1 = min(w, x1 + pad_x)
             region = img_array[y0:y1, x0:x1]
+            predictions, preprocess_s, classifier_s = self._run_classifier(region, k=k)
         else:
-            region = img_array   # classify full image if no bird found
-
-        # ── Classify ──
-        predictions, preprocess_s, classifier_s = self._run_classifier(region, k=k)
+            predictions = []
+            preprocess_s = 0.0
+            classifier_s = 0.0
 
         total_s = time.perf_counter() - t_total
 

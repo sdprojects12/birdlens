@@ -384,7 +384,7 @@ def identify():
     if state == IdentificationState.NOT_A_BIRD.value:
         return jsonify({
             "state": state,
-            "message": "No bird detected in this image.",
+            "message": "We couldn't detect a bird in this image.",
             "confidence": {
                 "detector_confidence": result["detector_confidence"],
                 "top1_score": result["top1_score"],
@@ -399,7 +399,7 @@ def identify():
     if state == IdentificationState.UNABLE_TO_IDENTIFY.value:
         return jsonify({
             "state": state,
-            "message": "A bird was detected, but the species could not be identified with confidence.",
+            "message": "A bird appears to be present, but we couldn't determine its species.",
             "confidence": {
                 "detector_confidence": result["detector_confidence"],
                 "top1_score": result["top1_score"],

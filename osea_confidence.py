@@ -46,7 +46,7 @@ class IdentificationState(str, Enum):
 class ConfidenceThresholds:
     # Below this detector confidence, we say "not a bird" outright,
     # regardless of what the classifier thinks.
-    detector_min_confidence: float = 0.50
+    detector_min_confidence: float = 0.60
 
     # Minimum top-1 classifier probability to even consider reporting
     # a species. Kept low on purpose -- see module docstring.
