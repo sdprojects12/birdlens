@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
+<link rel="icon" type="image/png" href="/static/favicon.png"/>
 <title>BirdLens — AI Bird Identifier</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Mono:wght@300;400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
@@ -71,7 +72,11 @@ header {
 }
 
 .logo-icon { flex-shrink: 0; width: 40px; height: 40px; }
-.logo-icon svg { width: 100%; height: 100%; }
+.logo-icon img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
 
 .logo-text h1 {
   font-family: 'Playfair Display', serif;
@@ -129,7 +134,8 @@ header {
 
 /* Drop zone */
 .upload-zone {
-  flex: 1;
+  flex: 0 0 500px;
+  min-height: 500px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   cursor: pointer; position: relative;
@@ -266,8 +272,8 @@ header {
 .btn-change {
   flex-shrink: 0;
   background: transparent; border: 1px solid var(--border);
-  color: var(--text-soft); font-size: 0.73rem;
-  padding: 6px 12px; border-radius: 6px;
+  color: var(--text-soft); font-size: 0.75rem;
+  padding: 7px 14px; border-radius: 6px;
   cursor: pointer; font-family: 'Inter', sans-serif;
   transition: all 0.2s; white-space: nowrap;
 }
@@ -571,6 +577,7 @@ footer a:hover { color: var(--feather); }
     height: auto; min-height: 300px;
     border-right: none; border-bottom: 1px solid var(--border);
   }
+  .upload-zone { flex-basis: 300px; min-height: 300px; }
   #preview-container { min-height: 280px; position: relative; }
   #preview-img { position: relative; width: 100%; height: auto; max-height: 60vh; min-height: 200px; }
 
@@ -668,6 +675,7 @@ footer a:hover { color: var(--feather); }
 .history-drawer {
   display: none;
   overflow-y: auto;
+  height: 240px;
   max-height: 240px;
   border-top: 1px solid var(--border);
   background: rgba(10,14,11,0.6);
@@ -727,12 +735,7 @@ footer a:hover { color: var(--feather); }
 <!-- ══ Header ════════════════════════════════════════════════════════ -->
 <header>
   <div class="logo-icon">
-    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="26" cy="26" r="25" stroke="#2e5c3e" stroke-width="1.5"/>
-      <path d="M12 30 Q18 18 26 22 Q30 14 40 16 Q36 24 30 24 Q34 28 30 34 Q24 38 16 36 Z" fill="#4a8c60" opacity="0.9"/>
-      <path d="M30 24 Q35 20 40 16 Q38 22 34 24" fill="#7ab89a" opacity="0.7"/>
-      <circle cx="34" cy="20" r="2" fill="#d4a843"/>
-    </svg>
+    <img src="/static/favicon.png" alt="BirdLens">
   </div>
   <div class="logo-text">
     <h1>Bird<em>Lens</em></h1>
@@ -803,7 +806,7 @@ footer a:hover { color: var(--feather); }
     <!-- Action bar (shown after image is loaded) -->
     <div class="image-actions" id="image-actions">
       <div class="file-meta" id="file-meta">—</div>
-      <button class="btn-change"   id="btn-change"   type="button">↩ Change</button>
+      <button class="btn-change"   id="btn-change"   type="button">↩ Change image</button>
       <button class="btn-identify" id="btn-identify" type="button">🔍 Identify</button>
     </div>
 
@@ -1343,7 +1346,7 @@ const histEmpty  = document.getElementById('history-empty');
 
 // ── Patch renderResults to gate on confidence ─────────────────────
 const _origRender = renderResults;
-renderResults = function(data) {
+renderResults = function(data, recordHistory = true) {
   const best = data.predictions[0];
   const score = best ? best.score : 0;
   const isNotBird = data.state === 'not_a_bird';
@@ -1380,14 +1383,14 @@ renderResults = function(data) {
     unidDiv.classList.add('visible');
 
     // Still record in history as unidentified
-    addHistory(null, '(Unidentified)', '', score, true);
+    if (recordHistory) addHistory(previewImg.src, '(Unidentified)', '', score, true, data);
   } else {
     unidDiv.classList.remove('visible');
     _origRender(data);
     // Record in history after successful render
     const best = data.predictions[0];
     const thumb = previewImg.src || null;
-    addHistory(thumb, best.common_name, best.scientific_name, best.score, false);
+    if (recordHistory) addHistory(thumb, best.common_name, best.scientific_name, best.score, false, data);
   }
 };
 
@@ -1395,16 +1398,24 @@ renderResults = function(data) {
 const MAX_HISTORY = 12;
 let history = [];   // [{thumb, name, sci, score, unid, dataSnapshot}]
 
-function addHistory(thumb, name, sci, score, unid) {
-  // Store a snapshot of the current previewImg src as thumbnail
+function addHistory(thumb, name, sci, score, unid, dataSnapshot) {
   const entry = {
-    thumb: previewImg.src || null,
+    thumb: thumb || previewImg.src || null,
     name, sci, score, unid,
+    dataSnapshot: dataSnapshot ? JSON.parse(JSON.stringify(dataSnapshot)) : null,
     id: Date.now()
   };
   history.unshift(entry);
   if (history.length > MAX_HISTORY) history.pop();
   renderHistory();
+}
+
+function fileFromDataUrl(dataUrl) {
+  const [header, encoded] = dataUrl.split(',');
+  const mime = (header.match(/data:([^;]+)/) || [])[1] || 'image/jpeg';
+  const binary = atob(encoded);
+  const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+  return new File([bytes], 'history-image', { type: mime });
 }
 
 function renderHistory() {
@@ -1432,15 +1443,30 @@ function renderHistory() {
       '</div>' +
       '<div class="hist-score ' + scoreClass + '">' + entry.score.toFixed(1) + '%</div>';
 
-    // Clicking a history thumbnail reloads that image into the preview
-    item.addEventListener('click', () => {
-      if (entry.thumb && !entry.unid) {
-        previewImg.src = entry.thumb;
-        uploadPH.style.display    = 'none';
-        previewCont.style.display = 'flex';
-        uploadZone.classList.add('has-image');
-        imageActions.classList.add('visible');
+    // Restore the image and the complete result snapshot together.
+    item.addEventListener('click', async () => {
+      if (!entry.thumb) return;
+      try {
+        if (entry.thumb.startsWith('data:')) {
+          selectedFile = fileFromDataUrl(entry.thumb);
+        } else {
+          const response = await fetch(entry.thumb);
+          const blob = await response.blob();
+          selectedFile = new File([blob], 'history-image.' + (blob.type.split('/')[1] || 'jpg'), { type: blob.type });
+        }
+      } catch {
+        selectedFile = null;
       }
+
+      previewImg.src = entry.thumb;
+      previewCont.classList.remove('preview-error');
+      uploadPH.style.display    = 'none';
+      previewCont.style.display = 'flex';
+      uploadZone.classList.add('has-image');
+      imageActions.classList.add('visible');
+      fileMeta.textContent = 'Previous identification';
+
+      if (entry.dataSnapshot) renderResults(entry.dataSnapshot, false);
     });
 
     histDrawer.appendChild(item);
