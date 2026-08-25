@@ -551,6 +551,7 @@ footer {
 }
 footer a { color: var(--text-muted); text-decoration: none; }
 footer a:hover { color: var(--feather); }
+.footer-disclaimer { font-size: 0.72rem; }
 
 /* ══ Toast ═══════════════════════════════════════════════════════════ */
 #toast {
@@ -859,20 +860,20 @@ footer a:hover { color: var(--feather); }
             <circle cx="26" cy="34" r="2" fill="#c87060"/>
           </svg>
         </div>
-        <div class="unid-title" id="unid-title">Unable to Identify</div>
+        <div class="unid-title" id="unid-title">Unable to identify this image</div>
         <p class="unid-body" id="unid-body">
-          A bird appears to be present, but we couldn't determine its species.
+          We couldn't confidently identify a bird in this image.
         </p>
         <div class="unid-best">
-          <span><span id="unid-best-label">Best guess:</span> <strong id="unid-best-name">—</strong></span>
+          <span><span id="unid-best-label">Result:</span> <strong id="unid-best-name">No confident identification</strong></span>
           <span class="unid-best-score" id="unid-best-score">—</span>
         </div>
         <div class="unid-tips">
           <p>Tips for a better result</p>
-          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-1">Make sure the bird is clearly visible and in focus</span></div>
-          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-2">Crop out distracting backgrounds before uploading</span></div>
-          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-3">Shoot in good lighting — avoid backlit silhouettes</span></div>
-          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-4">A single bird fills more of the frame works best</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-1">Use a clear, well-lit image</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-2">Avoid heavy blur, obstructions, or extreme lighting</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-3">Make sure the subject is clearly visible</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-4">For best results, use a natural photograph rather than a screenshot or edited image</span></div>
         </div>
       </div>
     </div>
@@ -949,10 +950,10 @@ footer a:hover { color: var(--feather); }
 </div>
 
 <footer>
-  <span>BirdLens · OSEA / DIB-10K + eBird API</span>
+  <span>BirdLens · <a href="https://github.com/sun-jiao/osea" target="_blank" rel="noopener noreferrer">OSEA / DIB-10K</a></span>
+  <span class="footer-disclaimer">BirdLens is currently in development. AI identifications may be inaccurate and should be independently verified.</span>
   <span>
     <a href="https://ebird.org" target="_blank" rel="noopener noreferrer">eBird</a> ·
-    <a href="https://github.com/sun-jiao/osea" target="_blank" rel="noopener noreferrer">OSEA</a> ·
     <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer">iNaturalist</a>
   </span>
 </footer>
@@ -1353,26 +1354,17 @@ renderResults = function(data, recordHistory = true) {
 
   if (isNotBird || score < CONFIDENCE_THRESHOLD) {
     // Show unidentified panel, hide normal results
-    document.getElementById('unid-title').textContent = isNotBird ? 'Not a Bird' : 'Unable to Identify';
-    document.getElementById('unid-body').textContent = isNotBird
-      ? "We couldn't detect a bird in this image."
-      : "A bird appears to be present, but we couldn't determine its species.";
-    document.getElementById('unid-best-label').textContent = isNotBird ? 'Result:' : 'Best guess:';
-    document.getElementById('unid-best-name').textContent  = isNotBird ? 'No bird detected' : (best ? best.common_name : '—');
-    document.getElementById('unid-best-score').textContent = isNotBird ? '—' : (best ? score.toFixed(1) + '%' : '—');
-    const tips = isNotBird
-      ? [
-          'Upload an image that contains a bird',
-          'Make sure the bird is clearly visible',
-          'Avoid screenshots, drawings, or heavily edited images',
-          'Keep the bird reasonably large in the frame',
-        ]
-      : [
-          'Make sure the bird is clearly visible and in focus',
-          'Crop out distracting backgrounds before uploading',
-          'Shoot in good lighting — avoid backlit silhouettes',
-          'A single bird fills more of the frame works best',
-        ];
+    document.getElementById('unid-title').textContent = 'Unable to identify this image';
+    document.getElementById('unid-body').textContent = "We couldn't confidently identify a bird in this image.";
+    document.getElementById('unid-best-label').textContent = 'Result:';
+    document.getElementById('unid-best-name').textContent  = 'No confident identification';
+    document.getElementById('unid-best-score').textContent = '—';
+    const tips = [
+      'Use a clear, well-lit image',
+      'Avoid heavy blur, obstructions, or extreme lighting',
+      'Make sure the subject is clearly visible',
+      'For best results, use a natural photograph rather than a screenshot or edited image',
+    ];
     tips.forEach((tip, index) => {
       document.getElementById('unid-tip-' + (index + 1)).textContent = tip;
     });
