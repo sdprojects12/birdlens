@@ -14,6 +14,19 @@ from werkzeug.utils import secure_filename
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
+# ── Memory diagnostics (lightweight) ──────────────────────────────────────────
+try:
+    import psutil
+    _HAS_PSUTIL = True
+except ImportError:
+    _HAS_PSUTIL = False
+
+def _log_memory(label: str) -> None:
+    """Log current process memory usage."""
+    if _HAS_PSUTIL:
+        rss_mb = psutil.Process().memory_info().rss / 1024 / 1024
+        log.info(f"MEMORY [{label}] {rss_mb:.1f} MB")
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 VENV_SITE_PACKAGES = PROJECT_ROOT / "venv" / "Lib" / "site-packages"
 if VENV_SITE_PACKAGES.exists() and str(VENV_SITE_PACKAGES) not in sys.path:
@@ -92,10 +105,12 @@ def get_osea_model() -> OSEAModel:
 def load_osea_model() -> None:
     """Load SSD MobileNet detector + OSEA classifier + bird_info.json once."""
     global OSEA_MODEL
+    _log_memory("before OSEA load")
     log.info("Loading OSEA models (detector + classifier + labels)")
     model = OSEAModel(model_dir=OSEA_MODEL_DIR)
     model.load(verbose=True)
     OSEA_MODEL = model
+    _log_memory("after OSEA load")
     log.info(
         "OSEA ready: %d species loaded from bird_info.json", model.num_species
     )
@@ -119,6 +134,7 @@ def classify_with_osea(image_path: str, top_k: int = 5) -> dict:
       }
     """
     try:
+        _log_memory("before prediction")
         model = get_osea_model()
         detection, predictions, timing = model.predict(image_path, k=top_k, use_detector=True)
 
@@ -142,6 +158,7 @@ def classify_with_osea(image_path: str, top_k: int = 5) -> dict:
             thresholds=DEFAULT_THRESHOLDS,
         )
 
+        _log_memory("after prediction/API processing")
         return {
             "state": decision.state.value,
             "reason": decision.reason,
@@ -310,6 +327,7 @@ def index():
 
 @app.route("/identify", methods=["POST"])
 def identify():
+    _log_memory("identify: start")
     # ── File presence ──
     if "image" not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
@@ -339,7 +357,9 @@ def identify():
 
     try:
         img_file.save(tmp_path)
+        _log_memory("identify: after save")
         result = classify_with_osea(tmp_path, top_k=5)
+        _log_memory("identify: after classify")
         prediction_log = ", ".join(
             f"{p['common_name']}={p['score']:.2f}%" for p in result["predictions"]
         ) or "none"

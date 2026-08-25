@@ -18,6 +18,7 @@ No Flask, no eBird, no iNaturalist, no Wikipedia.
 from __future__ import annotations
 
 import json
+import logging
 import time
 import urllib.request
 from dataclasses import dataclass, field
@@ -27,6 +28,9 @@ from typing import Any, Optional
 import numpy as np
 
 from osea_confidence import DEFAULT_THRESHOLDS
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+log = logging.getLogger(__name__)
 
 # ── Optional psutil (soft dependency) ────────────────────────────────────────
 try:
@@ -48,6 +52,7 @@ _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 _CLASSIFIER_INPUT_SIZE = 224   # centre-crop target
 _CLASSIFIER_RESIZE     = 256   # resize shorter side to this first
+_DETECTOR_MAX_SIDE     = 1024  # cap longest side before SSD inference
 
 # SSD MobileNet: accepts uint8 [1, H, W, 3], dynamic spatial dims (no fixed size)
 # Output node names from the ONNX Model Zoo SSD-MobileNetV1-12 spec:
@@ -91,6 +96,13 @@ def _ram_mb() -> Optional[float]:
     if not _HAS_PSUTIL:
         return None
     return _psutil.Process().memory_info().rss / 1024 / 1024
+
+
+def _log_memory(label: str) -> None:
+    """Log current process memory usage."""
+    if _HAS_PSUTIL:
+        rss_mb = _psutil.Process().memory_info().rss / 1024 / 1024
+        log.info(f"MEMORY [{label}] {rss_mb:.1f} MB")
 
 
 def download_assets(model_dir: Path, verbose: bool = True) -> None:
@@ -239,9 +251,26 @@ class OSEAModel:
 
     def _preprocess_detect(self, img_array: np.ndarray) -> np.ndarray:
         """
-        SSD MobileNet preprocessing: uint8 [1, H, W, 3] — no resizing needed,
-        the ONNX model accepts dynamic spatial dimensions.
+        SSD MobileNet preprocessing: preserve RGB/uint8 format and aspect ratio,
+        downscaling the longest side to 1024 pixels when needed. The ONNX model
+        receives uint8 [1, H, W, 3]; smaller images are not upscaled.
         """
+        from PIL import Image
+
+        height, width = img_array.shape[:2]
+        longest_side = max(height, width)
+        if longest_side > _DETECTOR_MAX_SIDE:
+            scale = _DETECTOR_MAX_SIDE / longest_side
+            resized_size = (
+                max(1, round(width * scale)),
+                max(1, round(height * scale)),
+            )
+            image = Image.fromarray(img_array.astype(np.uint8), mode="RGB")
+            img_array = np.asarray(
+                image.resize(resized_size, Image.Resampling.BILINEAR),
+                dtype=np.uint8,
+            )
+
         return img_array[np.newaxis].astype(np.uint8)
 
     # ── Detector ────────────────────────────────────────────────────────────
@@ -405,6 +434,7 @@ class OSEAModel:
         # ── Detection ──
         if use_detector and self._detector_session is not None:
             detection = self._run_detector(img_array)
+            _log_memory("after detector inference")
         else:
             detection = Detection(False, 0.0, 0.0, 0.0, 1.0, 1.0,
                                   detector_time_s=0.0)
@@ -421,6 +451,7 @@ class OSEAModel:
             x1 = min(w, x1 + pad_x)
             region = img_array[y0:y1, x0:x1]
             predictions, preprocess_s, classifier_s = self._run_classifier(region, k=k)
+            _log_memory("after classifier inference")
         else:
             predictions = []
             preprocess_s = 0.0
