@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
+<link rel="icon" type="image/png" href="/static/favicon.png"/>
 <title>BirdLens — AI Bird Identifier</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Mono:wght@300;400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
@@ -45,6 +46,8 @@ body {
   background: var(--ink);
   color: var(--text-main);
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   overflow-x: hidden;
 }
 
@@ -69,7 +72,11 @@ header {
 }
 
 .logo-icon { flex-shrink: 0; width: 40px; height: 40px; }
-.logo-icon svg { width: 100%; height: 100%; }
+.logo-icon img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
 
 .logo-text h1 {
   font-family: 'Playfair Display', serif;
@@ -83,6 +90,12 @@ header {
 }
 
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.location-control { display: flex; align-items: center; gap: 8px; }
+.location-label {
+  font-family: 'DM Mono', monospace; font-size: 0.62rem;
+  color: var(--text-muted); letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
 
 .region-select {
   background: var(--canopy); border: 1px solid var(--border);
@@ -101,6 +114,7 @@ header {
   padding: 10px;
   position: relative; z-index: 1;
   display: grid;
+  flex: 1 0 auto;
   align-items: start;
   grid-template-columns: 38% 62%;
   min-height: auto; /* subtract header height */
@@ -120,7 +134,8 @@ header {
 
 /* Drop zone */
 .upload-zone {
-  flex: 1;
+  flex: 0 0 500px;
+  min-height: 500px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   cursor: pointer; position: relative;
@@ -257,8 +272,8 @@ header {
 .btn-change {
   flex-shrink: 0;
   background: transparent; border: 1px solid var(--border);
-  color: var(--text-soft); font-size: 0.73rem;
-  padding: 6px 12px; border-radius: 6px;
+  color: var(--text-soft); font-size: 0.75rem;
+  padding: 7px 14px; border-radius: 6px;
   cursor: pointer; font-family: 'Inter', sans-serif;
   transition: all 0.2s; white-space: nowrap;
 }
@@ -286,7 +301,7 @@ header {
 .idle-state {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  text-align: center; padding: 40px 20px; gap: 10px;
+  text-align: center; padding: 32px 20px; gap: 10px;
   color: var(--text-muted);
 }
 .idle-state .idle-icon { opacity: 0.2; margin-bottom: 8px; }
@@ -296,6 +311,23 @@ header {
   color: var(--text-soft);
 }
 .idle-state p { font-size: 0.8rem; line-height: 1.6; max-width: 260px; }
+.how-it-works { width: min(100%, 420px); margin: 12px auto 0; padding-top: 12px; border-top: 1px solid var(--border); text-align: center; }
+.how-it-works-title {
+  font-family: 'DM Mono', monospace; font-size: 0.62rem;
+  color: var(--text-muted); letter-spacing: 0.12em;
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.how-it-works-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.how-step {
+  min-width: 0; padding: 10px 8px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: rgba(20,28,22,0.38);
+}
+.how-step-number {
+  font-family: 'DM Mono', monospace; font-size: 0.62rem;
+  color: var(--sage); margin-bottom: 7px;
+}
+.how-step-text { font-size: 0.7rem; color: var(--text-soft); line-height: 1.35; }
 
 /* Results panel */
 #results { display: none; animation: slideIn 0.45s cubic-bezier(0.22,1,0.36,1); }
@@ -327,6 +359,7 @@ header {
 }
 .ring-pct  { font-family: 'DM Mono', monospace; font-size: 0.85rem; color: var(--amber); line-height: 1; transition: color 0.4s; }
 .ring-word { font-family: 'DM Mono', monospace; font-size: 0.42rem; color: var(--text-muted); margin-top: 2px; letter-spacing: 0.05em; text-transform: uppercase; }
+.model-note { font-family: 'DM Mono', monospace; font-size: 0.62rem; color: var(--text-muted); margin-top: 8px; }
 
 .bird-name {
   font-family: 'Playfair Display', serif;
@@ -469,17 +502,43 @@ header {
   display: flex; align-items: center; gap: 10px;
 }
 .section-header::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.nearby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(188px,1fr)); gap: 10px; }
+.nearby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(188px,1fr)); gap: 12px; align-items: stretch; }
 .nearby-card {
+  display: flex; flex-direction: column;
+  height: 148px;
   background: rgba(28,36,31,0.65); border: 1px solid var(--border);
   border-radius: 8px; padding: 13px 15px;
   transition: border-color 0.2s, transform 0.2s;
 }
+.nearby-card:has(.nearby-details[open]) { height: auto; min-height: 148px; }
 .nearby-card:hover { border-color: var(--sage); transform: translateY(-2px); }
 .ncn { font-size: 0.87rem; color: var(--text-main); font-weight: 500; }
 .nsn { font-family: 'Playfair Display', serif; font-style: italic; font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
-.nloc { font-size: 0.7rem; color: var(--mist); margin-top: 6px; }
-.ndate { font-family: 'DM Mono', monospace; font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; }
+.nloc { font-size: 0.7rem; color: var(--mist); margin-top: auto; padding-top: 8px; }
+.ndate { font-family: 'DM Mono', monospace; font-size: 0.62rem; color: var(--text-muted); margin-top: 3px; }
+.nearby-count { margin-top: 8px; font-family: 'DM Mono', monospace; font-size: 0.62rem; color: var(--amber); }
+.nearby-details { margin-top: auto; padding-top: 8px; }
+.nearby-details summary {
+  cursor: pointer; list-style: none;
+  font-family: 'DM Mono', monospace; font-size: 0.62rem;
+  color: var(--feather);
+}
+.nearby-details summary::-webkit-details-marker { display: none; }
+.nearby-details summary::after { content: ' +'; color: var(--text-muted); }
+.nearby-details[open] summary::after { content: ' −'; }
+.nearby-observations { max-height: 116px; overflow-y: auto; margin-top: 7px; padding-right: 3px; }
+.nearby-observation { display: flex; gap: 6px; font-size: 0.66rem; color: var(--mist); line-height: 1.4; }
+.nearby-observation + .nearby-observation { margin-top: 4px; }
+.nearby-observation::before { content: '·'; color: var(--sage); flex-shrink: 0; }
+.skeleton-card { pointer-events: none; }
+.skeleton-line {
+  height: 9px; border-radius: 3px; width: 72%;
+  background: linear-gradient(90deg, rgba(214,225,200,0.06), rgba(214,225,200,0.14), rgba(214,225,200,0.06));
+  background-size: 200% 100%; animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+.skeleton-line.short { width: 48%; margin-top: 8px; }
+.skeleton-line.bottom { width: 84%; margin-top: auto; padding-top: 8px; }
+@keyframes skeletonShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 
 /* ══ Footer ══════════════════════════════════════════════════════════ */
 footer {
@@ -492,6 +551,7 @@ footer {
 }
 footer a { color: var(--text-muted); text-decoration: none; }
 footer a:hover { color: var(--feather); }
+.footer-disclaimer { font-size: 0.72rem; }
 
 /* ══ Toast ═══════════════════════════════════════════════════════════ */
 #toast {
@@ -518,11 +578,13 @@ footer a:hover { color: var(--feather); }
     height: auto; min-height: 300px;
     border-right: none; border-bottom: 1px solid var(--border);
   }
+  .upload-zone { flex-basis: 300px; min-height: 300px; }
   #preview-container { min-height: 280px; position: relative; }
   #preview-img { position: relative; width: 100%; height: auto; max-height: 60vh; min-height: 200px; }
 
   .panel-info { padding: 24px 18px 48px; }
   .nearby-section { padding: 24px 18px 40px; }
+  .how-it-works-steps { grid-template-columns: repeat(2, 1fr); }
   footer { padding: 16px 18px; }
 }
 
@@ -537,10 +599,10 @@ footer a:hover { color: var(--feather); }
   background: rgba(40,22,18,0.82);
   border: 1px solid rgba(184,56,32,0.30);
   border-radius: 10px;
-  padding: 28px 24px;
+  padding: 22px 24px;
   text-align: center;
 }
-.unid-icon { margin: 0 auto 16px; opacity: 0.55; }
+.unid-icon { margin: 0 auto 12px; opacity: 0.55; }
 .unid-title {
   font-family: 'Playfair Display', serif;
   font-size: 1.2rem; font-weight: 600;
@@ -548,7 +610,7 @@ footer a:hover { color: var(--feather); }
 }
 .unid-body {
   font-size: 0.83rem; color: var(--text-muted);
-  line-height: 1.7; max-width: 320px; margin: 0 auto 20px;
+  line-height: 1.6; max-width: 320px; margin: 0 auto 16px;
 }
 .unid-best {
   display: inline-flex; align-items: center; gap: 10px;
@@ -556,7 +618,7 @@ footer a:hover { color: var(--feather); }
   border: 1px solid var(--border);
   border-radius: 7px; padding: 10px 16px;
   font-size: 0.8rem; color: var(--text-soft);
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .unid-best-score {
   font-family: 'DM Mono', monospace;
@@ -568,8 +630,8 @@ footer a:hover { color: var(--feather); }
   text-align: left;
   background: rgba(255,255,255,0.03);
   border: 1px solid var(--border);
-  border-radius: 7px; padding: 14px 16px;
-  margin-top: 4px;
+  border-radius: 7px; padding: 12px 14px;
+  margin-top: 2px;
 }
 .unid-tips p {
   font-family: 'DM Mono', monospace;
@@ -593,24 +655,29 @@ footer a:hover { color: var(--feather); }
 .history-toggle {
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; background: none; border: none;
-  padding: 12px 16px;
+  padding: 13px 16px;
   border-top: 1px solid var(--border);
+  background: rgba(20,28,22,0.45);
   color: var(--text-muted);
   font-family: 'DM Mono', monospace; font-size: 0.68rem;
   letter-spacing: 0.1em; text-transform: uppercase;
-  cursor: pointer; transition: color 0.2s;
+  cursor: pointer; transition: color 0.2s, background 0.2s;
 }
-.history-toggle:hover { color: var(--text-soft); }
+.history-toggle:hover { color: var(--text-soft); background: rgba(145,176,123,0.07); }
 .history-toggle-arrow {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 18px;
+  border: 1px solid var(--border); border-radius: 4px;
   transition: transform 0.25s;
-  font-size: 0.6rem;
+  font-size: 0.58rem; color: var(--text-soft);
 }
 .history-toggle.open .history-toggle-arrow { transform: rotate(180deg); }
 
 .history-drawer {
   display: none;
   overflow-y: auto;
-  max-height: 260px;
+  height: 240px;
+  max-height: 240px;
   border-top: 1px solid var(--border);
   background: rgba(10,14,11,0.6);
 }
@@ -624,7 +691,7 @@ footer a:hover { color: var(--feather); }
 
 .history-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 14px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background 0.15s;
@@ -669,19 +736,16 @@ footer a:hover { color: var(--feather); }
 <!-- ══ Header ════════════════════════════════════════════════════════ -->
 <header>
   <div class="logo-icon">
-    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="26" cy="26" r="25" stroke="#2e5c3e" stroke-width="1.5"/>
-      <path d="M12 30 Q18 18 26 22 Q30 14 40 16 Q36 24 30 24 Q34 28 30 34 Q24 38 16 36 Z" fill="#4a8c60" opacity="0.9"/>
-      <path d="M30 24 Q35 20 40 16 Q38 22 34 24" fill="#7ab89a" opacity="0.7"/>
-      <circle cx="34" cy="20" r="2" fill="#d4a843"/>
-    </svg>
+    <img src="/static/favicon.png" alt="BirdLens">
   </div>
   <div class="logo-text">
     <h1>Bird<em>Lens</em></h1>
-    <p>AI-powered identification · BioCLIP + eBird</p>
+    <p>AI-powered identification · OSEA + eBird</p>
   </div>
   <div class="header-right">
-    <select class="region-select" id="region-select" title="Sightings region">
+    <label class="location-control" for="region-select">
+      <span class="location-label">Location</span>
+      <select class="region-select" id="region-select" title="Controls nearby sightings location">
       <option value="IN-MH">Maharashtra, India</option>
       <option value="IN">All India</option>
       <option value="IN-DL">Delhi, India</option>
@@ -692,7 +756,8 @@ footer a:hover { color: var(--feather); }
       <option value="US-NY">New York, USA</option>
       <option value="GB">United Kingdom</option>
       <option value="AU">Australia</option>
-    </select>
+      </select>
+    </label>
   </div>
 </header>
 
@@ -742,7 +807,7 @@ footer a:hover { color: var(--feather); }
     <!-- Action bar (shown after image is loaded) -->
     <div class="image-actions" id="image-actions">
       <div class="file-meta" id="file-meta">—</div>
-      <button class="btn-change"   id="btn-change"   type="button">↩ Change</button>
+      <button class="btn-change"   id="btn-change"   type="button">↩ Change image</button>
       <button class="btn-identify" id="btn-identify" type="button">🔍 Identify</button>
     </div>
 
@@ -772,11 +837,20 @@ footer a:hover { color: var(--feather); }
         </svg>
       </div>
       <h3>Identify a bird</h3>
-      <p>Upload a photo on the left and click <em>Identify</em> — BirdLens will recognise the species and show you everything about it here.</p>
+      <p>Upload a photo on the left and click <em>Identify</em> to explore the species.</p>
+      <div class="how-it-works">
+        <div class="how-it-works-title">How BirdLens works</div>
+        <div class="how-it-works-steps">
+          <div class="how-step"><div class="how-step-number">01</div><div class="how-step-text">Upload a bird photo</div></div>
+          <div class="how-step"><div class="how-step-number">02</div><div class="how-step-text">Bird detection</div></div>
+          <div class="how-step"><div class="how-step-number">03</div><div class="how-step-text">Species identification</div></div>
+          <div class="how-step"><div class="how-step-number">04</div><div class="how-step-text">Bird information</div></div>
+        </div>
+      </div>
     </div>
 
     
-    <!-- Unable to identify panel (shown when confidence < 15%) -->
+    <!-- Unable to identify panel -->
     <div id="unidentified">
       <div class="unid-card">
         <div class="unid-icon">
@@ -786,21 +860,20 @@ footer a:hover { color: var(--feather); }
             <circle cx="26" cy="34" r="2" fill="#c87060"/>
           </svg>
         </div>
-        <div class="unid-title">Unable to identify bird</div>
-        <p class="unid-body">
-          The best match has a confidence below 15%, which usually means this photo
-          doesn't clearly show a bird, or the image quality is too low.
+        <div class="unid-title" id="unid-title">Unable to identify this image</div>
+        <p class="unid-body" id="unid-body">
+          We couldn't confidently identify a bird in this image.
         </p>
         <div class="unid-best">
-          <span>Best guess: <strong id="unid-best-name">—</strong></span>
+          <span><span id="unid-best-label">Result:</span> <strong id="unid-best-name">No confident identification</strong></span>
           <span class="unid-best-score" id="unid-best-score">—</span>
         </div>
         <div class="unid-tips">
           <p>Tips for a better result</p>
-          <div class="unid-tip"><div class="unid-tip-dot"></div><span>Make sure the bird is clearly visible and in focus</span></div>
-          <div class="unid-tip"><div class="unid-tip-dot"></div><span>Crop out distracting backgrounds before uploading</span></div>
-          <div class="unid-tip"><div class="unid-tip-dot"></div><span>Shoot in good lighting — avoid backlit silhouettes</span></div>
-          <div class="unid-tip"><div class="unid-tip-dot"></div><span>A single bird fills more of the frame works best</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-1">Use a clear, well-lit image</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-2">Avoid heavy blur, obstructions, or extreme lighting</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-3">Make sure the subject is clearly visible</span></div>
+          <div class="unid-tip"><div class="unid-tip-dot"></div><span id="unid-tip-4">For best results, use a natural photograph rather than a screenshot or edited image</span></div>
         </div>
       </div>
     </div>
@@ -818,7 +891,7 @@ footer a:hover { color: var(--feather); }
             </svg>
             <div class="ring-label">
               <div class="ring-pct"  id="ring-pct">—</div>
-              <div class="ring-word">match</div>
+              <div class="ring-word">Confidence</div>
             </div>
           </div>
           <div class="id-names">
@@ -826,6 +899,7 @@ footer a:hover { color: var(--feather); }
             <div class="scientific-name" id="r-scientific-name">—</div>
           </div>
         </div>
+        <div class="model-note">Powered by OSEA · DIB-10K</div>
 
         <div class="tax-chips" id="r-taxonomy"></div>
         <div class="qstats"    id="r-qstats"></div>
@@ -876,10 +950,10 @@ footer a:hover { color: var(--feather); }
 </div>
 
 <footer>
-  <span>BirdLens · BioCLIP 2 (CVPR'24) + eBird API</span>
+  <span>BirdLens · <a href="https://github.com/sun-jiao/osea" target="_blank" rel="noopener noreferrer">OSEA / DIB-10K</a></span>
+  <span class="footer-disclaimer">BirdLens is currently in development. AI identifications may be inaccurate and should be independently verified.</span>
   <span>
     <a href="https://ebird.org" target="_blank" rel="noopener noreferrer">eBird</a> ·
-    <a href="https://github.com/Imageomics/pybioclip" target="_blank" rel="noopener noreferrer">pybioclip</a> ·
     <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer">iNaturalist</a>
   </span>
 </footer>
@@ -1180,7 +1254,13 @@ function buildFacts(best, ebird, inat) {
 // ── Nearby birds ──────────────────────────────────────────────────
 async function loadNearby() {
   const grid = document.getElementById('nearby-grid');
-  grid.innerHTML = '<div class="empty-state">Loading…</div>';
+  grid.innerHTML = Array.from({ length: 4 }, () =>
+    '<div class="nearby-card skeleton-card">' +
+      '<div class="skeleton-line"></div>' +
+      '<div class="skeleton-line short"></div>' +
+      '<div class="skeleton-line bottom"></div>' +
+    '</div>'
+  ).join('');
   try {
     const resp = await fetch('/nearby?region=' + encodeURIComponent(regionSelect.value));
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1189,12 +1269,29 @@ async function loadNearby() {
       grid.innerHTML = '<div class="empty-state">No notable sightings found for this region.</div>';
       return;
     }
-    grid.innerHTML = data.birds.map(b =>
+    const groups = [];
+    const groupMap = new Map();
+    data.birds.forEach(b => {
+      const key = b.species_code || (b.common_name + '|' + b.scientific_name);
+      let group = groupMap.get(key);
+      if (!group) {
+        group = { ...b, observations: [] };
+        groupMap.set(key, group);
+        groups.push(group);
+      }
+      group.observations.push(b);
+    });
+    grid.innerHTML = groups.map(b =>
       '<div class="nearby-card">' +
         '<div class="ncn">' + esc(b.common_name) + '</div>' +
         '<div class="nsn">' + esc(b.scientific_name) + '</div>' +
-        '<div class="nloc">📍 ' + esc(b.location) + '</div>' +
-        '<div class="ndate">' + esc(b.date) + (b.count && b.count !== '?' ? ' · ×' + esc(String(b.count)) : '') + '</div>' +
+        '<div class="nearby-count">' + b.observations.length + (b.observations.length === 1 ? ' sighting' : ' sightings') + '</div>' +
+        '<details class="nearby-details">' +
+          '<summary>View observations</summary>' +
+          '<div class="nearby-observations">' + b.observations.map(observation =>
+            '<div class="nearby-observation">' + esc(observation.location) + ' · ' + esc(observation.date) + (observation.count && observation.count !== '?' ? ' · ×' + esc(String(observation.count)) : '') + '</div>'
+          ).join('') + '</div>' +
+        '</details>' +
       '</div>'
     ).join('');
   } catch {
@@ -1250,13 +1347,27 @@ const histEmpty  = document.getElementById('history-empty');
 
 // ── Patch renderResults to gate on confidence ─────────────────────
 const _origRender = renderResults;
-renderResults = function(data) {
-  const score = data.predictions[0].score;
+renderResults = function(data, recordHistory = true) {
+  const best = data.predictions[0];
+  const score = best ? best.score : 0;
+  const isNotBird = data.state === 'not_a_bird';
 
-  if (score < CONFIDENCE_THRESHOLD) {
+  if (isNotBird || score < CONFIDENCE_THRESHOLD) {
     // Show unidentified panel, hide normal results
-    document.getElementById('unid-best-name').textContent  = data.predictions[0].common_name;
-    document.getElementById('unid-best-score').textContent = score.toFixed(1) + '%';
+    document.getElementById('unid-title').textContent = 'Unable to identify this image';
+    document.getElementById('unid-body').textContent = "We couldn't confidently identify a bird in this image.";
+    document.getElementById('unid-best-label').textContent = 'Result:';
+    document.getElementById('unid-best-name').textContent  = 'No confident identification';
+    document.getElementById('unid-best-score').textContent = '—';
+    const tips = [
+      'Use a clear, well-lit image',
+      'Avoid heavy blur, obstructions, or extreme lighting',
+      'Make sure the subject is clearly visible',
+      'For best results, use a natural photograph rather than a screenshot or edited image',
+    ];
+    tips.forEach((tip, index) => {
+      document.getElementById('unid-tip-' + (index + 1)).textContent = tip;
+    });
 
     idleState.style.display  = 'none';
     resultsDiv.style.display = 'none';
@@ -1264,14 +1375,14 @@ renderResults = function(data) {
     unidDiv.classList.add('visible');
 
     // Still record in history as unidentified
-    addHistory(null, '(Unidentified)', '', score, true);
+    if (recordHistory) addHistory(previewImg.src, '(Unidentified)', '', score, true, data);
   } else {
     unidDiv.classList.remove('visible');
     _origRender(data);
     // Record in history after successful render
     const best = data.predictions[0];
     const thumb = previewImg.src || null;
-    addHistory(thumb, best.common_name, best.scientific_name, best.score, false);
+    if (recordHistory) addHistory(thumb, best.common_name, best.scientific_name, best.score, false, data);
   }
 };
 
@@ -1279,16 +1390,24 @@ renderResults = function(data) {
 const MAX_HISTORY = 12;
 let history = [];   // [{thumb, name, sci, score, unid, dataSnapshot}]
 
-function addHistory(thumb, name, sci, score, unid) {
-  // Store a snapshot of the current previewImg src as thumbnail
+function addHistory(thumb, name, sci, score, unid, dataSnapshot) {
   const entry = {
-    thumb: previewImg.src || null,
+    thumb: thumb || previewImg.src || null,
     name, sci, score, unid,
+    dataSnapshot: dataSnapshot ? JSON.parse(JSON.stringify(dataSnapshot)) : null,
     id: Date.now()
   };
   history.unshift(entry);
   if (history.length > MAX_HISTORY) history.pop();
   renderHistory();
+}
+
+function fileFromDataUrl(dataUrl) {
+  const [header, encoded] = dataUrl.split(',');
+  const mime = (header.match(/data:([^;]+)/) || [])[1] || 'image/jpeg';
+  const binary = atob(encoded);
+  const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+  return new File([bytes], 'history-image', { type: mime });
 }
 
 function renderHistory() {
@@ -1316,15 +1435,30 @@ function renderHistory() {
       '</div>' +
       '<div class="hist-score ' + scoreClass + '">' + entry.score.toFixed(1) + '%</div>';
 
-    // Clicking a history thumbnail reloads that image into the preview
-    item.addEventListener('click', () => {
-      if (entry.thumb && !entry.unid) {
-        previewImg.src = entry.thumb;
-        uploadPH.style.display    = 'none';
-        previewCont.style.display = 'flex';
-        uploadZone.classList.add('has-image');
-        imageActions.classList.add('visible');
+    // Restore the image and the complete result snapshot together.
+    item.addEventListener('click', async () => {
+      if (!entry.thumb) return;
+      try {
+        if (entry.thumb.startsWith('data:')) {
+          selectedFile = fileFromDataUrl(entry.thumb);
+        } else {
+          const response = await fetch(entry.thumb);
+          const blob = await response.blob();
+          selectedFile = new File([blob], 'history-image.' + (blob.type.split('/')[1] || 'jpg'), { type: blob.type });
+        }
+      } catch {
+        selectedFile = null;
       }
+
+      previewImg.src = entry.thumb;
+      previewCont.classList.remove('preview-error');
+      uploadPH.style.display    = 'none';
+      previewCont.style.display = 'flex';
+      uploadZone.classList.add('has-image');
+      imageActions.classList.add('visible');
+      fileMeta.textContent = 'Previous identification';
+
+      if (entry.dataSnapshot) renderResults(entry.dataSnapshot, false);
     });
 
     histDrawer.appendChild(item);
