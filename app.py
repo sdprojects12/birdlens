@@ -38,7 +38,7 @@ app = Flask(__name__, static_folder="static")
 # ── Config ────────────────────────────────────────────────────────────────────
 # Load API key from environment first; fall back to hardcoded value.
 # Preferred: set EBIRD_API_KEY in your shell so the key is never in source.
-EBIRD_API_KEY = os.environ.get("EBIRD_API_KEY", "k0rnvug008l9")
+EBIRD_API_KEY = os.environ.get("EBIRD_API_KEY", "")
 EBIRD_BASE = "https://api.ebird.org/v2"
 
 # Upload limits
