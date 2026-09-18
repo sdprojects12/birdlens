@@ -107,6 +107,8 @@ BirdLens/
 ├── osea_model.py
 ├── osea_confidence.py
 ├── requirements.txt
+├── Procfile
+├── .gitignore
 └── README.md
 ```
 
@@ -171,6 +173,12 @@ export EBIRD_API_KEY="your-api-key"
 
 ```bash
 python app.py
+```
+
+To enable Flask debug mode (auto-reload, debugger), set the `FLASK_DEBUG` environment variable:
+
+```bash
+FLASK_DEBUG=1 python app.py
 ```
 
 The application runs on:
