@@ -254,22 +254,30 @@ class OSEAModel:
         SSD MobileNet preprocessing: preserve RGB/uint8 format and aspect ratio,
         downscaling the longest side to 1024 pixels when needed. The ONNX model
         receives uint8 [1, H, W, 3]; smaller images are not upscaled.
+
+        Logs original and final detector input dimensions for diagnostics.
         """
         from PIL import Image
 
-        height, width = img_array.shape[:2]
-        longest_side = max(height, width)
+        orig_height, orig_width = img_array.shape[:2]
+        longest_side = max(orig_height, orig_width)
         if longest_side > _DETECTOR_MAX_SIDE:
             scale = _DETECTOR_MAX_SIDE / longest_side
             resized_size = (
-                max(1, round(width * scale)),
-                max(1, round(height * scale)),
+                max(1, round(orig_width * scale)),
+                max(1, round(orig_height * scale)),
             )
             image = Image.fromarray(img_array.astype(np.uint8), mode="RGB")
             img_array = np.asarray(
                 image.resize(resized_size, Image.Resampling.BILINEAR),
                 dtype=np.uint8,
             )
+
+        final_height, final_width = img_array.shape[:2]
+        log.info(
+            "OSEA detector input: original=%dx%d -> detector=%dx%d",
+            orig_width, orig_height, final_width, final_height,
+        )
 
         return img_array[np.newaxis].astype(np.uint8)
 
